@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 
 # Kiro OpenAI Gateway
+# https://github.com/jwadow/kiro-openai-gateway
 # Copyright (C) 2025 Jwadow
 #
 # This program is free software: you can redistribute it and/or modify
@@ -17,12 +18,12 @@
 # along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 """
-Streaming логика для преобразования потока Kiro в OpenAI формат.
+Streaming logic for converting Kiro stream to OpenAI format.
 
-Содержит генераторы для:
-- Преобразования AWS SSE в OpenAI SSE
-- Формирования streaming chunks
-- Обработки tool calls в потоке
+Contains generators for:
+- Converting AWS SSE to OpenAI SSE
+- Forming streaming chunks
+- Processing tool calls in stream
 """
 
 import asyncio
@@ -43,7 +44,7 @@ if TYPE_CHECKING:
     from kiro_gateway.auth import KiroAuthManager
     from kiro_gateway.cache import ModelInfoCache
 
-# Импортируем debug_logger для логирования
+# Import debug_logger for logging
 try:
     from kiro_gateway.debug_logger import debug_logger
 except ImportError:
@@ -51,7 +52,7 @@ except ImportError:
 
 
 class FirstTokenTimeoutError(Exception):
-    """Исключение при таймауте ожидания первого токена."""
+    """Exception raised when first token timeout occurs."""
     pass
 
 
@@ -66,29 +67,29 @@ async def stream_kiro_to_openai_internal(
     request_tools: Optional[list] = None
 ) -> AsyncGenerator[str, None]:
     """
-    Внутренний генератор для преобразования потока Kiro в OpenAI формат.
+    Internal generator for converting Kiro stream to OpenAI format.
     
-    Парсит AWS SSE stream и конвертирует события в OpenAI chat.completion.chunk.
-    Поддерживает tool calls и вычисление usage.
+    Parses AWS SSE stream and converts events to OpenAI chat.completion.chunk.
+    Supports tool calls and usage calculation.
     
-    ВАЖНО: Эта функция выбрасывает FirstTokenTimeoutError если первый токен
-    не получен в течение first_token_timeout секунд.
+    IMPORTANT: This function raises FirstTokenTimeoutError if first token
+    is not received within first_token_timeout seconds.
     
     Args:
-        client: HTTP клиент (для управления соединением)
-        response: HTTP ответ с потоком данных
-        model: Имя модели для включения в ответ
-        model_cache: Кэш моделей для получения лимитов токенов
-        auth_manager: Менеджер аутентификации
-        first_token_timeout: Таймаут ожидания первого токена (секунды)
-        request_messages: Исходные сообщения запроса (для fallback подсчёта токенов)
-        request_tools: Исходные инструменты запроса (для fallback подсчёта токенов)
+        client: HTTP client (for connection management)
+        response: HTTP response with data stream
+        model: Model name to include in response
+        model_cache: Model cache for getting token limits
+        auth_manager: Authentication manager
+        first_token_timeout: First token wait timeout (seconds)
+        request_messages: Original request messages (for fallback token counting)
+        request_tools: Original request tools (for fallback token counting)
     
     Yields:
-        Строки в формате SSE: "data: {...}\\n\\n" или "data: [DONE]\\n\\n"
+        Strings in SSE format: "data: {...}\\n\\n" or "data: [DONE]\\n\\n"
     
     Raises:
-        FirstTokenTimeoutError: Если первый токен не получен в течение таймаута
+        FirstTokenTimeoutError: If first token not received within timeout
     
     Example:
         >>> async for chunk in stream_kiro_to_openai_internal(client, response, "claude-sonnet-4", cache, auth):
@@ -107,11 +108,13 @@ async def stream_kiro_to_openai_internal(
     context_usage_percentage = None
     full_content = ""
     
+    streaming_error_occurred = False
+    
     try:
-        # Создаём итератор для чтения байтов
+        # Create iterator for reading bytes
         byte_iterator = response.aiter_bytes()
         
-        # Ожидаем первый chunk с таймаутом
+        # Wait for first chunk with timeout
         try:
             first_byte_chunk = await asyncio.wait_for(
                 byte_iterator.__anext__(),
@@ -121,12 +124,12 @@ async def stream_kiro_to_openai_internal(
             logger.warning(f"First token timeout after {first_token_timeout}s")
             raise FirstTokenTimeoutError(f"No response within {first_token_timeout} seconds")
         except StopAsyncIteration:
-            # Пустой ответ - это нормально, просто завершаем
+            # Empty response - this is normal, just finish
             logger.debug("Empty response from Kiro API")
             yield "data: [DONE]\n\n"
             return
         
-        # Обрабатываем первый chunk
+        # Process first chunk
         if debug_logger:
             debug_logger.log_raw_chunk(first_byte_chunk)
         
@@ -163,9 +166,9 @@ async def stream_kiro_to_openai_internal(
             elif event["type"] == "context_usage":
                 context_usage_percentage = event["data"]
         
-        # Продолжаем читать остальные chunks (уже без таймаута на первый токен)
+        # Continue reading remaining chunks (no longer with first token timeout)
         async for chunk in byte_iterator:
-            # Логируем сырой chunk
+            # Log raw chunk
             if debug_logger:
                 debug_logger.log_raw_chunk(chunk)
             
@@ -176,13 +179,13 @@ async def stream_kiro_to_openai_internal(
                     content = event["data"]
                     full_content += content
                     
-                    # Формируем delta
+                    # Form delta
                     delta = {"content": content}
                     if first_chunk:
                         delta["role"] = "assistant"
                         first_chunk = False
                     
-                    # Формируем OpenAI chunk
+                    # Form OpenAI chunk
                     openai_chunk = {
                         "id": completion_id,
                         "object": "chat.completion.chunk",
@@ -193,7 +196,7 @@ async def stream_kiro_to_openai_internal(
                     
                     chunk_text = f"data: {json.dumps(openai_chunk, ensure_ascii=False)}\n\n"
                     
-                    # Логируем модифицированный chunk
+                    # Log modified chunk
                     if debug_logger:
                         debug_logger.log_modified_chunk(chunk_text.encode('utf-8'))
                     
@@ -205,37 +208,37 @@ async def stream_kiro_to_openai_internal(
                 elif event["type"] == "context_usage":
                     context_usage_percentage = event["data"]
         
-        # Проверяем bracket-style tool calls в полном контенте
+        # Check bracket-style tool calls in full content
         bracket_tool_calls = parse_bracket_tool_calls(full_content)
         all_tool_calls = parser.get_tool_calls() + bracket_tool_calls
         all_tool_calls = deduplicate_tool_calls(all_tool_calls)
         
-        # Определяем finish_reason
+        # Determine finish_reason
         finish_reason = "tool_calls" if all_tool_calls else "stop"
         
-        # Подсчитываем completion_tokens (output) с помощью tiktoken
+        # Count completion_tokens (output) using tiktoken
         completion_tokens = count_tokens(full_content)
         
-        # Вычисляем total_tokens на основе context_usage_percentage от API Kiro
-        # context_usage показывает ОБЩИЙ процент использования контекста (input + output)
+        # Calculate total_tokens based on context_usage_percentage from Kiro API
+        # context_usage shows TOTAL percentage of context usage (input + output)
         total_tokens_from_api = 0
         if context_usage_percentage is not None and context_usage_percentage > 0:
             max_input_tokens = model_cache.get_max_input_tokens(model)
             total_tokens_from_api = int((context_usage_percentage / 100) * max_input_tokens)
         
-        # Определяем источник данных и вычисляем токены
+        # Determine data source and calculate tokens
         if total_tokens_from_api > 0:
-            # Используем данные от API Kiro
+            # Use data from Kiro API
             # prompt_tokens (input) = total_tokens - completion_tokens
             prompt_tokens = max(0, total_tokens_from_api - completion_tokens)
             total_tokens = total_tokens_from_api
             prompt_source = "subtraction"
             total_source = "API Kiro"
         else:
-            # Fallback: API Kiro не вернул context_usage, используем tiktoken
-            # Подсчитываем prompt_tokens из исходных сообщений
-            # ВАЖНО: Не применяем коэффициент коррекции для prompt_tokens,
-            # так как он был калиброван для completion_tokens
+            # Fallback: Kiro API didn't return context_usage, use tiktoken
+            # Count prompt_tokens from original messages
+            # IMPORTANT: Don't apply correction coefficient for prompt_tokens,
+            # as it was calibrated for completion_tokens
             prompt_tokens = 0
             if request_messages:
                 prompt_tokens += count_message_tokens(request_messages, apply_claude_correction=False)
@@ -245,17 +248,17 @@ async def stream_kiro_to_openai_internal(
             prompt_source = "tiktoken"
             total_source = "tiktoken"
         
-        # Отправляем tool calls если есть
+        # Send tool calls if present
         if all_tool_calls:
             logger.debug(f"Processing {len(all_tool_calls)} tool calls for streaming response")
             
-            # Добавляем обязательное поле index к каждому tool_call
-            # согласно спецификации OpenAI API для streaming
+            # Add required index field to each tool_call
+            # according to OpenAI API specification for streaming
             indexed_tool_calls = []
             for idx, tc in enumerate(all_tool_calls):
-                # Извлекаем function с защитой от None
+                # Extract function with None protection
                 func = tc.get("function") or {}
-                # Используем "or" для защиты от явного None в значениях
+                # Use "or" for protection against explicit None in values
                 tool_name = func.get("name") or ""
                 tool_args = func.get("arguments") or "{}"
                 
@@ -285,7 +288,7 @@ async def stream_kiro_to_openai_internal(
             }
             yield f"data: {json.dumps(tool_calls_chunk, ensure_ascii=False)}\n\n"
         
-        # Финальный чанк с usage
+        # Final chunk with usage
         final_chunk = {
             "id": completion_id,
             "object": "chat.completion.chunk",
@@ -302,7 +305,7 @@ async def stream_kiro_to_openai_internal(
         if metering_data:
             final_chunk["usage"]["credits_used"] = metering_data
         
-        # Логируем финальные значения токенов которые отправляются клиенту
+        # Log final token values being sent to client
         logger.debug(
             f"[Usage] {model}: "
             f"prompt_tokens={prompt_tokens} ({prompt_source}), "
@@ -314,13 +317,34 @@ async def stream_kiro_to_openai_internal(
         yield "data: [DONE]\n\n"
         
     except FirstTokenTimeoutError:
-        # Пробрасываем таймаут наверх для retry
+        # Propagate timeout up for retry
         raise
+    except GeneratorExit:
+        # Client disconnected - this is normal, don't log as error
+        logger.debug("Client disconnected (GeneratorExit)")
+        streaming_error_occurred = True
     except Exception as e:
-        logger.error(f"Error during streaming: {e}", exc_info=True)
+        streaming_error_occurred = True
+        # Log exception type and message for better diagnostics
+        error_type = type(e).__name__
+        error_msg = str(e) if str(e) else "(empty message)"
+        logger.error(
+            f"Error during streaming: [{error_type}] {error_msg}",
+            exc_info=True
+        )
+        # Propagate error up for proper handling in routes.py
+        raise
     finally:
-        await response.aclose()
-        logger.debug("Streaming completed")
+        # Always close response
+        try:
+            await response.aclose()
+        except Exception as close_error:
+            logger.debug(f"Error closing response: {close_error}")
+        
+        if streaming_error_occurred:
+            logger.debug("Streaming completed with error")
+        else:
+            logger.debug("Streaming completed successfully")
 
 
 async def stream_kiro_to_openai(
@@ -333,22 +357,22 @@ async def stream_kiro_to_openai(
     request_tools: Optional[list] = None
 ) -> AsyncGenerator[str, None]:
     """
-    Генератор для преобразования потока Kiro в OpenAI формат.
+    Generator for converting Kiro stream to OpenAI format.
     
-    Это wrapper над stream_kiro_to_openai_internal, который НЕ делает retry.
-    Retry логика реализована в stream_with_first_token_retry.
+    This is a wrapper over stream_kiro_to_openai_internal that does NOT retry.
+    Retry logic is implemented in stream_with_first_token_retry.
     
     Args:
-        client: HTTP клиент (для управления соединением)
-        response: HTTP ответ с потоком данных
-        model: Имя модели для включения в ответ
-        model_cache: Кэш моделей для получения лимитов токенов
-        auth_manager: Менеджер аутентификации
-        request_messages: Исходные сообщения запроса (для fallback подсчёта токенов)
-        request_tools: Исходные инструменты запроса (для fallback подсчёта токенов)
+        client: HTTP client (for connection management)
+        response: HTTP response with data stream
+        model: Model name to include in response
+        model_cache: Model cache for getting token limits
+        auth_manager: Authentication manager
+        request_messages: Original request messages (for fallback token counting)
+        request_tools: Original request tools (for fallback token counting)
     
     Yields:
-        Строки в формате SSE: "data: {...}\\n\\n" или "data: [DONE]\\n\\n"
+        Strings in SSE format: "data: {...}\\n\\n" or "data: [DONE]\\n\\n"
     """
     async for chunk in stream_kiro_to_openai_internal(
         client, response, model, model_cache, auth_manager,
@@ -370,30 +394,30 @@ async def stream_with_first_token_retry(
     request_tools: Optional[list] = None
 ) -> AsyncGenerator[str, None]:
     """
-    Streaming с автоматическим retry при таймауте первого токена.
+    Streaming with automatic retry on first token timeout.
     
-    Если модель не отвечает в течение first_token_timeout секунд,
-    запрос отменяется и делается новый. Максимум max_retries попыток.
+    If model doesn't respond within first_token_timeout seconds,
+    request is cancelled and a new one is made. Maximum max_retries attempts.
     
-    Это seamless для пользователя - он просто видит задержку,
-    но в итоге получает ответ (или ошибку после всех попыток).
+    This is seamless for user - they just see a delay,
+    but eventually get a response (or error after all attempts).
     
     Args:
-        make_request: Функция для создания нового HTTP запроса
-        client: HTTP клиент
-        model: Имя модели
-        model_cache: Кэш моделей
-        auth_manager: Менеджер аутентификации
-        max_retries: Максимальное количество попыток
-        first_token_timeout: Таймаут ожидания первого токена (секунды)
-        request_messages: Исходные сообщения запроса (для fallback подсчёта токенов)
-        request_tools: Исходные инструменты запроса (для fallback подсчёта токенов)
+        make_request: Function to create new HTTP request
+        client: HTTP client
+        model: Model name
+        model_cache: Model cache
+        auth_manager: Authentication manager
+        max_retries: Maximum number of attempts
+        first_token_timeout: First token wait timeout (seconds)
+        request_messages: Original request messages (for fallback token counting)
+        request_tools: Original request tools (for fallback token counting)
     
     Yields:
-        Строки в формате SSE
+        Strings in SSE format
     
     Raises:
-        HTTPException: После исчерпания всех попыток
+        HTTPException: After exhausting all attempts
     
     Example:
         >>> async def make_req():
@@ -406,14 +430,14 @@ async def stream_with_first_token_retry(
     for attempt in range(max_retries):
         response: Optional[httpx.Response] = None
         try:
-            # Делаем запрос
+            # Make request
             if attempt > 0:
                 logger.warning(f"Retry attempt {attempt + 1}/{max_retries} after first token timeout")
             
             response = await make_request()
             
             if response.status_code != 200:
-                # Ошибка от API - закрываем response и выбрасываем исключение
+                # Error from API - close response and raise exception
                 try:
                     error_content = await response.aread()
                     error_text = error_content.decode('utf-8', errors='replace')
@@ -431,7 +455,7 @@ async def stream_with_first_token_retry(
                     detail=f"Upstream API error: {error_text}"
                 )
             
-            # Пытаемся стримить с таймаутом на первый токен
+            # Try to stream with first token timeout
             async for chunk in stream_kiro_to_openai_internal(
                 client,
                 response,
@@ -444,25 +468,25 @@ async def stream_with_first_token_retry(
             ):
                 yield chunk
             
-            # Успешно завершили - выходим
+            # Successfully completed - exit
             return
             
         except FirstTokenTimeoutError as e:
             last_error = e
             logger.warning(f"First token timeout on attempt {attempt + 1}/{max_retries}")
             
-            # Закрываем текущий response если он открыт
+            # Close current response if open
             if response:
                 try:
                     await response.aclose()
                 except Exception:
                     pass
             
-            # Продолжаем к следующей попытке
+            # Continue to next attempt
             continue
             
         except Exception as e:
-            # Другие ошибки - не retry, пробрасываем
+            # Other errors - no retry, propagate
             logger.error(f"Unexpected error during streaming: {e}", exc_info=True)
             if response:
                 try:
@@ -471,7 +495,7 @@ async def stream_with_first_token_retry(
                     pass
             raise
     
-    # Все попытки исчерпаны - выбрасываем HTTP ошибку
+    # All attempts exhausted - raise HTTP error
     logger.error(f"All {max_retries} attempts failed due to first token timeout")
     raise HTTPException(
         status_code=504,
@@ -489,22 +513,22 @@ async def collect_stream_response(
     request_tools: Optional[list] = None
 ) -> dict:
     """
-    Собирает полный ответ из streaming потока.
+    Collect full response from streaming stream.
     
-    Используется для non-streaming режима - собирает все chunks
-    и формирует единый ответ.
+    Used for non-streaming mode - collects all chunks
+    and forms a single response.
     
     Args:
-        client: HTTP клиент
-        response: HTTP ответ с потоком
-        model: Имя модели
-        model_cache: Кэш моделей
-        auth_manager: Менеджер аутентификации
-        request_messages: Исходные сообщения запроса (для fallback подсчёта токенов)
-        request_tools: Исходные инструменты запроса (для fallback подсчёта токенов)
+        client: HTTP client
+        response: HTTP response with stream
+        model: Model name
+        model_cache: Model cache
+        auth_manager: Authentication manager
+        request_messages: Original request messages (for fallback token counting)
+        request_tools: Original request tools (for fallback token counting)
     
     Returns:
-        Словарь с полным ответом в формате OpenAI chat.completion
+        Dictionary with full response in OpenAI chat.completion format
     """
     full_content = ""
     final_usage = None
@@ -530,28 +554,28 @@ async def collect_stream_response(
         try:
             chunk_data = json.loads(data_str)
             
-            # Извлекаем данные из chunk
+            # Extract data from chunk
             delta = chunk_data.get("choices", [{}])[0].get("delta", {})
             if "content" in delta:
                 full_content += delta["content"]
             if "tool_calls" in delta:
                 tool_calls.extend(delta["tool_calls"])
             
-            # Сохраняем usage из последнего chunk
+            # Save usage from last chunk
             if "usage" in chunk_data:
                 final_usage = chunk_data["usage"]
                 
         except (json.JSONDecodeError, IndexError):
             continue
     
-    # Формируем финальный ответ
+    # Form final response
     message = {"role": "assistant", "content": full_content}
     if tool_calls:
-        # Для non-streaming ответа удаляем поле index из tool_calls,
-        # так как оно требуется только для streaming chunks
+        # For non-streaming response remove index field from tool_calls,
+        # as it's only required for streaming chunks
         cleaned_tool_calls = []
         for tc in tool_calls:
-            # Извлекаем function с защитой от None
+            # Extract function with None protection
             func = tc.get("function") or {}
             cleaned_tc = {
                 "id": tc.get("id"),
@@ -566,10 +590,10 @@ async def collect_stream_response(
     
     finish_reason = "tool_calls" if tool_calls else "stop"
     
-    # Формируем usage для ответа
+    # Form usage for response
     usage = final_usage or {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
     
-    # Логируем информацию о токенах для отладки (non-streaming использует те же логи из streaming)
+    # Log token info for debugging (non-streaming uses same logs from streaming)
     
     return {
         "id": completion_id,

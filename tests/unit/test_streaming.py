@@ -1,8 +1,9 @@
+
 # -*- coding: utf-8 -*-
 
 """
-Unit-тесты для streaming модуля.
-Проверяет логику добавления index к tool_calls и защиту от None значений.
+Unit tests for streaming module.
+Tests logic for adding index to tool_calls and protection from None values.
 """
 
 import pytest
@@ -17,7 +18,7 @@ from kiro_gateway.streaming import (
 
 @pytest.fixture
 def mock_model_cache():
-    """Мок для ModelInfoCache."""
+    """Mock for ModelInfoCache."""
     cache = MagicMock()
     cache.get_max_input_tokens.return_value = 200000
     return cache
@@ -25,28 +26,28 @@ def mock_model_cache():
 
 @pytest.fixture
 def mock_auth_manager():
-    """Мок для KiroAuthManager."""
+    """Mock for KiroAuthManager."""
     manager = MagicMock()
     return manager
 
 
 @pytest.fixture
 def mock_http_client():
-    """Мок для httpx.AsyncClient."""
+    """Mock for httpx.AsyncClient."""
     client = AsyncMock()
     return client
 
 
 class TestStreamingToolCallsIndex:
-    """Тесты для добавления index к tool_calls в streaming ответах."""
+    """Tests for adding index to tool_calls in streaming responses."""
     
     @pytest.mark.asyncio
     async def test_tool_calls_have_index_field(self, mock_http_client, mock_model_cache, mock_auth_manager):
         """
-        Что он делает: Проверяет, что tool_calls в streaming ответе содержат поле index.
-        Цель: Убедиться, что OpenAI API spec соблюдается для streaming tool calls.
+        What it does: Verifies that tool_calls in streaming response contain index field.
+        Goal: Ensure OpenAI API spec is followed for streaming tool calls.
         """
-        print("Настройка: Мок tool calls без index...")
+        print("Setup: Mock tool calls without index...")
         tool_calls = [
             {
                 "id": "call_123",
@@ -58,12 +59,12 @@ class TestStreamingToolCallsIndex:
             }
         ]
         
-        print("Настройка: Мок парсера...")
+        print("Setup: Mock parser...")
         mock_parser = MagicMock()
         mock_parser.feed.return_value = []
         mock_parser.get_tool_calls.return_value = tool_calls
         
-        print("Настройка: Мок response...")
+        print("Setup: Mock response...")
         mock_response = AsyncMock()
         mock_response.status_code = 200
         
@@ -73,7 +74,7 @@ class TestStreamingToolCallsIndex:
         mock_response.aiter_bytes = mock_aiter_bytes
         mock_response.aclose = AsyncMock()
         
-        print("Действие: Сбор streaming chunks...")
+        print("Action: Collecting streaming chunks...")
         chunks = []
         
         with patch('kiro_gateway.streaming.AwsEventStreamParser', return_value=mock_parser):
@@ -84,9 +85,9 @@ class TestStreamingToolCallsIndex:
                 ):
                     chunks.append(chunk)
         
-        print(f"Получено chunks: {len(chunks)}")
+        print(f"Received chunks: {len(chunks)}")
         
-        # Ищем chunk с tool_calls
+        # Look for chunk with tool_calls
         tool_calls_found = False
         for chunk in chunks:
             if isinstance(chunk, str) and "tool_calls" in chunk:
@@ -97,33 +98,33 @@ class TestStreamingToolCallsIndex:
                         if "choices" in data and data["choices"]:
                             delta = data["choices"][0].get("delta", {})
                             if "tool_calls" in delta:
-                                print(f"Tool calls в delta: {delta['tool_calls']}")
+                                print(f"Tool calls in delta: {delta['tool_calls']}")
                                 for tc in delta["tool_calls"]:
-                                    print(f"Проверяем index в tool call: {tc}")
-                                    assert "index" in tc, "Tool call должен содержать поле index"
+                                    print(f"Checking index in tool call: {tc}")
+                                    assert "index" in tc, "Tool call must contain index field"
                                     tool_calls_found = True
         
-        assert tool_calls_found, "Tool calls chunk не найден"
+        assert tool_calls_found, "Tool calls chunk not found"
     
     @pytest.mark.asyncio
     async def test_multiple_tool_calls_have_sequential_indices(self, mock_http_client, mock_model_cache, mock_auth_manager):
         """
-        Что он делает: Проверяет, что несколько tool_calls имеют последовательные индексы.
-        Цель: Убедиться, что индексы начинаются с 0 и идут последовательно.
+        What it does: Verifies that multiple tool_calls have sequential indices.
+        Goal: Ensure indices start from 0 and go sequentially.
         """
-        print("Настройка: Несколько tool calls...")
+        print("Setup: Multiple tool calls...")
         tool_calls = [
             {"id": "call_1", "type": "function", "function": {"name": "func1", "arguments": "{}"}},
             {"id": "call_2", "type": "function", "function": {"name": "func2", "arguments": "{}"}},
             {"id": "call_3", "type": "function", "function": {"name": "func3", "arguments": "{}"}}
         ]
         
-        print("Настройка: Мок парсера...")
+        print("Setup: Mock parser...")
         mock_parser = MagicMock()
         mock_parser.feed.return_value = []
         mock_parser.get_tool_calls.return_value = tool_calls
         
-        print("Настройка: Мок response...")
+        print("Setup: Mock response...")
         mock_response = AsyncMock()
         mock_response.status_code = 200
         
@@ -133,7 +134,7 @@ class TestStreamingToolCallsIndex:
         mock_response.aiter_bytes = mock_aiter_bytes
         mock_response.aclose = AsyncMock()
         
-        print("Действие: Сбор streaming chunks...")
+        print("Action: Collecting streaming chunks...")
         chunks = []
         
         with patch('kiro_gateway.streaming.AwsEventStreamParser', return_value=mock_parser):
@@ -144,7 +145,7 @@ class TestStreamingToolCallsIndex:
                 ):
                     chunks.append(chunk)
         
-        # Ищем chunk с tool_calls
+        # Look for chunk with tool_calls
         for chunk in chunks:
             if isinstance(chunk, str) and "tool_calls" in chunk:
                 if chunk.startswith("data: "):
@@ -155,20 +156,20 @@ class TestStreamingToolCallsIndex:
                             delta = data["choices"][0].get("delta", {})
                             if "tool_calls" in delta:
                                 indices = [tc["index"] for tc in delta["tool_calls"]]
-                                print(f"Индексы: {indices}")
-                                assert indices == [0, 1, 2], f"Индексы должны быть [0, 1, 2], получено {indices}"
+                                print(f"Indices: {indices}")
+                                assert indices == [0, 1, 2], f"Indices should be [0, 1, 2], got {indices}"
 
 
 class TestStreamingToolCallsNoneProtection:
-    """Тесты для защиты от None значений в tool_calls."""
+    """Tests for protection from None values in tool_calls."""
     
     @pytest.mark.asyncio
     async def test_handles_none_function_name(self, mock_http_client, mock_model_cache, mock_auth_manager):
         """
-        Что он делает: Проверяет обработку None в function.name.
-        Цель: Убедиться, что None заменяется на пустую строку.
+        What it does: Verifies handling of None in function.name.
+        Goal: Ensure None is replaced with empty string.
         """
-        print("Настройка: Tool call с None name...")
+        print("Setup: Tool call with None name...")
         tool_calls = [
             {
                 "id": "call_1",
@@ -193,7 +194,7 @@ class TestStreamingToolCallsNoneProtection:
         mock_response.aiter_bytes = mock_aiter_bytes
         mock_response.aclose = AsyncMock()
         
-        print("Действие: Сбор streaming chunks...")
+        print("Action: Collecting streaming chunks...")
         chunks = []
         
         with patch('kiro_gateway.streaming.AwsEventStreamParser', return_value=mock_parser):
@@ -204,11 +205,11 @@ class TestStreamingToolCallsNoneProtection:
                 ):
                     chunks.append(chunk)
         
-        # Проверяем, что не было исключений и chunks собраны
-        print(f"Получено chunks: {len(chunks)}")
+        # Verify no exceptions and chunks collected
+        print(f"Received chunks: {len(chunks)}")
         assert len(chunks) > 0
         
-        # Проверяем, что name заменён на пустую строку
+        # Verify name replaced with empty string
         for chunk in chunks:
             if isinstance(chunk, str) and "tool_calls" in chunk:
                 if chunk.startswith("data: "):
@@ -219,15 +220,15 @@ class TestStreamingToolCallsNoneProtection:
                             delta = data["choices"][0].get("delta", {})
                             if "tool_calls" in delta:
                                 for tc in delta["tool_calls"]:
-                                    assert tc["function"]["name"] == "", "None name должен быть заменён на пустую строку"
+                                    assert tc["function"]["name"] == "", "None name should be replaced with empty string"
     
     @pytest.mark.asyncio
     async def test_handles_none_function_arguments(self, mock_http_client, mock_model_cache, mock_auth_manager):
         """
-        Что он делает: Проверяет обработку None в function.arguments.
-        Цель: Убедиться, что None заменяется на "{}".
+        What it does: Verifies handling of None in function.arguments.
+        Goal: Ensure None is replaced with "{}".
         """
-        print("Настройка: Tool call с None arguments...")
+        print("Setup: Tool call with None arguments...")
         tool_calls = [
             {
                 "id": "call_1",
@@ -252,7 +253,7 @@ class TestStreamingToolCallsNoneProtection:
         mock_response.aiter_bytes = mock_aiter_bytes
         mock_response.aclose = AsyncMock()
         
-        print("Действие: Сбор streaming chunks...")
+        print("Action: Collecting streaming chunks...")
         chunks = []
         
         with patch('kiro_gateway.streaming.AwsEventStreamParser', return_value=mock_parser):
@@ -263,10 +264,10 @@ class TestStreamingToolCallsNoneProtection:
                 ):
                     chunks.append(chunk)
         
-        print(f"Получено chunks: {len(chunks)}")
+        print(f"Received chunks: {len(chunks)}")
         assert len(chunks) > 0
         
-        # Проверяем, что arguments заменён на "{}"
+        # Verify arguments replaced with "{}"
         for chunk in chunks:
             if isinstance(chunk, str) and "tool_calls" in chunk:
                 if chunk.startswith("data: "):
@@ -277,16 +278,16 @@ class TestStreamingToolCallsNoneProtection:
                             delta = data["choices"][0].get("delta", {})
                             if "tool_calls" in delta:
                                 for tc in delta["tool_calls"]:
-                                    # None должен быть заменён на "{}" или пустую строку
+                                    # None should be replaced with "{}" or empty string
                                     assert tc["function"]["arguments"] is not None
     
     @pytest.mark.asyncio
     async def test_handles_none_function_object(self, mock_http_client, mock_model_cache, mock_auth_manager):
         """
-        Что он делает: Проверяет обработку None вместо function объекта.
-        Цель: Убедиться, что None function обрабатывается без ошибок.
+        What it does: Verifies handling of None instead of function object.
+        Goal: Ensure None function is handled without errors.
         """
-        print("Настройка: Tool call с None function...")
+        print("Setup: Tool call with None function...")
         tool_calls = [
             {
                 "id": "call_1",
@@ -308,7 +309,7 @@ class TestStreamingToolCallsNoneProtection:
         mock_response.aiter_bytes = mock_aiter_bytes
         mock_response.aclose = AsyncMock()
         
-        print("Действие: Сбор streaming chunks...")
+        print("Action: Collecting streaming chunks...")
         chunks = []
         
         with patch('kiro_gateway.streaming.AwsEventStreamParser', return_value=mock_parser):
@@ -319,20 +320,20 @@ class TestStreamingToolCallsNoneProtection:
                 ):
                     chunks.append(chunk)
         
-        print(f"Получено chunks: {len(chunks)}")
+        print(f"Received chunks: {len(chunks)}")
         assert len(chunks) > 0
 
 
 class TestCollectStreamResponseToolCalls:
-    """Тесты для collect_stream_response с tool_calls."""
+    """Tests for collect_stream_response with tool_calls."""
     
     @pytest.mark.asyncio
     async def test_collected_tool_calls_have_no_index(self, mock_http_client, mock_model_cache, mock_auth_manager):
         """
-        Что он делает: Проверяет, что собранные tool_calls не содержат поле index.
-        Цель: Убедиться, что для non-streaming ответа index удаляется.
+        What it does: Verifies that collected tool_calls don't contain index field.
+        Goal: Ensure index is removed for non-streaming response.
         """
-        print("Настройка: Tool calls...")
+        print("Setup: Tool calls...")
         tool_calls = [
             {
                 "id": "call_1",
@@ -354,7 +355,7 @@ class TestCollectStreamResponseToolCalls:
         mock_response.aiter_bytes = mock_aiter_bytes
         mock_response.aclose = AsyncMock()
         
-        print("Действие: Сбор полного ответа...")
+        print("Action: Collecting full response...")
         
         with patch('kiro_gateway.streaming.AwsEventStreamParser', return_value=mock_parser):
             with patch('kiro_gateway.streaming.parse_bracket_tool_calls', return_value=[]):
@@ -363,22 +364,22 @@ class TestCollectStreamResponseToolCalls:
                     mock_model_cache, mock_auth_manager
                 )
         
-        print(f"Результат: {result}")
+        print(f"Result: {result}")
         
         if "choices" in result and result["choices"]:
             message = result["choices"][0].get("message", {})
             if "tool_calls" in message:
                 for tc in message["tool_calls"]:
                     print(f"Tool call: {tc}")
-                    assert "index" not in tc, "Non-streaming tool_calls не должны содержать index"
+                    assert "index" not in tc, "Non-streaming tool_calls should not contain index"
     
     @pytest.mark.asyncio
     async def test_collected_tool_calls_have_required_fields(self, mock_http_client, mock_model_cache, mock_auth_manager):
         """
-        Что он делает: Проверяет, что собранные tool_calls содержат все обязательные поля.
-        Цель: Убедиться, что id, type, function присутствуют.
+        What it does: Verifies that collected tool_calls contain all required fields.
+        Goal: Ensure id, type, function are present.
         """
-        print("Настройка: Tool calls...")
+        print("Setup: Tool calls...")
         tool_calls = [
             {
                 "id": "call_abc",
@@ -400,7 +401,7 @@ class TestCollectStreamResponseToolCalls:
         mock_response.aiter_bytes = mock_aiter_bytes
         mock_response.aclose = AsyncMock()
         
-        print("Действие: Сбор полного ответа...")
+        print("Action: Collecting full response...")
         
         with patch('kiro_gateway.streaming.AwsEventStreamParser', return_value=mock_parser):
             with patch('kiro_gateway.streaming.parse_bracket_tool_calls', return_value=[]):
@@ -409,26 +410,26 @@ class TestCollectStreamResponseToolCalls:
                     mock_model_cache, mock_auth_manager
                 )
         
-        print(f"Результат: {result}")
+        print(f"Result: {result}")
         
         if "choices" in result and result["choices"]:
             message = result["choices"][0].get("message", {})
             if "tool_calls" in message:
                 for tc in message["tool_calls"]:
-                    print(f"Проверяем tool call: {tc}")
-                    assert "id" in tc, "Tool call должен содержать id"
-                    assert "type" in tc, "Tool call должен содержать type"
-                    assert "function" in tc, "Tool call должен содержать function"
-                    assert "name" in tc["function"], "Function должен содержать name"
-                    assert "arguments" in tc["function"], "Function должен содержать arguments"
+                    print(f"Checking tool call: {tc}")
+                    assert "id" in tc, "Tool call must contain id"
+                    assert "type" in tc, "Tool call must contain type"
+                    assert "function" in tc, "Tool call must contain function"
+                    assert "name" in tc["function"], "Function must contain name"
+                    assert "arguments" in tc["function"], "Function must contain arguments"
     
     @pytest.mark.asyncio
     async def test_handles_none_in_collected_tool_calls(self, mock_http_client, mock_model_cache, mock_auth_manager):
         """
-        Что он делает: Проверяет обработку None значений в собранных tool_calls.
-        Цель: Убедиться, что None заменяются на дефолтные значения.
+        What it does: Verifies handling of None values in collected tool_calls.
+        Goal: Ensure None is replaced with default values.
         """
-        print("Настройка: Tool calls с None значениями...")
+        print("Setup: Tool calls with None values...")
         tool_calls = [
             {
                 "id": "call_1",
@@ -450,7 +451,7 @@ class TestCollectStreamResponseToolCalls:
         mock_response.aiter_bytes = mock_aiter_bytes
         mock_response.aclose = AsyncMock()
         
-        print("Действие: Сбор полного ответа...")
+        print("Action: Collecting full response...")
         
         with patch('kiro_gateway.streaming.AwsEventStreamParser', return_value=mock_parser):
             with patch('kiro_gateway.streaming.parse_bracket_tool_calls', return_value=[]):
@@ -459,7 +460,315 @@ class TestCollectStreamResponseToolCalls:
                     mock_model_cache, mock_auth_manager
                 )
         
-        print(f"Результат: {result}")
+        print(f"Result: {result}")
         
-        # Проверяем, что не было исключений
+        # Verify no exceptions
         assert "choices" in result
+
+
+class TestStreamingErrorHandling:
+    """Tests for error handling in streaming module."""
+    
+    @pytest.mark.asyncio
+    async def test_generator_exit_handled_gracefully(self, mock_http_client, mock_model_cache, mock_auth_manager):
+        """
+        What it does: Verifies that GeneratorExit is handled without logging as error.
+        Goal: Ensure client disconnect doesn't cause ERROR in logs.
+        """
+        print("Setup: Mock response that will raise GeneratorExit...")
+        
+        mock_response = AsyncMock()
+        mock_response.status_code = 200
+        mock_response.aclose = AsyncMock()
+        
+        # Create generator that will raise GeneratorExit
+        async def mock_aiter_bytes_with_generator_exit():
+            yield b'{"content":"Hello"}'
+            # Simulate client disconnect
+            raise GeneratorExit()
+        
+        mock_response.aiter_bytes = mock_aiter_bytes_with_generator_exit
+        
+        mock_parser = MagicMock()
+        mock_parser.feed.return_value = [{"type": "content", "data": "Hello"}]
+        mock_parser.get_tool_calls.return_value = []
+        
+        print("Action: Running streaming with GeneratorExit...")
+        chunks_received = []
+        generator_exit_caught = False
+        
+        with patch('kiro_gateway.streaming.AwsEventStreamParser', return_value=mock_parser):
+            with patch('kiro_gateway.streaming.parse_bracket_tool_calls', return_value=[]):
+                try:
+                    async for chunk in stream_kiro_to_openai(
+                        mock_http_client, mock_response, "test-model",
+                        mock_model_cache, mock_auth_manager
+                    ):
+                        chunks_received.append(chunk)
+                except GeneratorExit:
+                    generator_exit_caught = True
+                    print("GeneratorExit was caught (expected)")
+        
+        print(f"Received chunks before GeneratorExit: {len(chunks_received)}")
+        print(f"GeneratorExit caught: {generator_exit_caught}")
+        
+        # Verify response was closed
+        print("Check: response.aclose() should be called...")
+        mock_response.aclose.assert_called()
+        print("✓ response.aclose() was called")
+    
+    @pytest.mark.asyncio
+    async def test_exception_with_empty_message_logged_with_type(self, mock_http_client, mock_model_cache, mock_auth_manager):
+        """
+        What it does: Verifies that exception with empty message is logged with type.
+        Goal: Ensure exception type is visible in logs even if str(e) is empty.
+        """
+        print("Setup: Mock response that will raise exception with empty message...")
+        
+        mock_response = AsyncMock()
+        mock_response.status_code = 200
+        mock_response.aclose = AsyncMock()
+        
+        # Create custom exception with empty message
+        class EmptyMessageError(Exception):
+            def __str__(self):
+                return ""
+        
+        async def mock_aiter_bytes_with_empty_error():
+            yield b'{"content":"Hello"}'
+            raise EmptyMessageError()
+        
+        mock_response.aiter_bytes = mock_aiter_bytes_with_empty_error
+        
+        mock_parser = MagicMock()
+        mock_parser.feed.return_value = [{"type": "content", "data": "Hello"}]
+        mock_parser.get_tool_calls.return_value = []
+        
+        print("Action: Running streaming with EmptyMessageError...")
+        
+        with patch('kiro_gateway.streaming.AwsEventStreamParser', return_value=mock_parser):
+            with patch('kiro_gateway.streaming.parse_bracket_tool_calls', return_value=[]):
+                with patch('kiro_gateway.streaming.logger') as mock_logger:
+                    exception_raised = False
+                    try:
+                        async for chunk in stream_kiro_to_openai(
+                            mock_http_client, mock_response, "test-model",
+                            mock_model_cache, mock_auth_manager
+                        ):
+                            pass
+                    except EmptyMessageError:
+                        exception_raised = True
+                        print("EmptyMessageError was caught (expected)")
+                    
+                    print("Check: logger.error should be called with exception type...")
+                    # Verify logger.error was called
+                    error_calls = [call for call in mock_logger.error.call_args_list]
+                    print(f"logger.error calls: {error_calls}")
+                    
+                    # Should have call with exception type
+                    assert exception_raised, "Exception should be propagated"
+                    assert mock_logger.error.called, "logger.error should be called"
+                    
+                    # Verify exception type is in message
+                    error_message = str(mock_logger.error.call_args_list[0])
+                    print(f"Error message: {error_message}")
+                    assert "EmptyMessageError" in error_message, "Exception type should be in log"
+                    print("✓ Exception type is present in log")
+    
+    @pytest.mark.asyncio
+    async def test_exception_propagated_to_caller(self, mock_http_client, mock_model_cache, mock_auth_manager):
+        """
+        What it does: Verifies that exceptions are propagated up.
+        Goal: Ensure errors are not "swallowed" inside generator.
+        """
+        print("Setup: Mock response that will raise RuntimeError...")
+        
+        mock_response = AsyncMock()
+        mock_response.status_code = 200
+        mock_response.aclose = AsyncMock()
+        
+        async def mock_aiter_bytes_with_error():
+            yield b'{"content":"Hello"}'
+            raise RuntimeError("Test error for propagation")
+        
+        mock_response.aiter_bytes = mock_aiter_bytes_with_error
+        
+        mock_parser = MagicMock()
+        mock_parser.feed.return_value = [{"type": "content", "data": "Hello"}]
+        mock_parser.get_tool_calls.return_value = []
+        
+        print("Action: Running streaming with RuntimeError...")
+        
+        with patch('kiro_gateway.streaming.AwsEventStreamParser', return_value=mock_parser):
+            with patch('kiro_gateway.streaming.parse_bracket_tool_calls', return_value=[]):
+                with pytest.raises(RuntimeError) as exc_info:
+                    async for chunk in stream_kiro_to_openai(
+                        mock_http_client, mock_response, "test-model",
+                        mock_model_cache, mock_auth_manager
+                    ):
+                        pass
+        
+        print(f"Caught exception: {exc_info.value}")
+        assert "Test error for propagation" in str(exc_info.value)
+        print("✓ Exception was propagated up with correct message")
+    
+    @pytest.mark.asyncio
+    async def test_response_closed_on_error(self, mock_http_client, mock_model_cache, mock_auth_manager):
+        """
+        What it does: Verifies that response is closed even on error.
+        Goal: Ensure resources are released in finally block.
+        """
+        print("Setup: Mock response that will raise ValueError...")
+        
+        mock_response = AsyncMock()
+        mock_response.status_code = 200
+        mock_response.aclose = AsyncMock()
+        
+        async def mock_aiter_bytes_with_value_error():
+            yield b'{"content":"Hello"}'
+            raise ValueError("Test value error")
+        
+        mock_response.aiter_bytes = mock_aiter_bytes_with_value_error
+        
+        mock_parser = MagicMock()
+        mock_parser.feed.return_value = [{"type": "content", "data": "Hello"}]
+        mock_parser.get_tool_calls.return_value = []
+        
+        print("Action: Running streaming with ValueError...")
+        
+        with patch('kiro_gateway.streaming.AwsEventStreamParser', return_value=mock_parser):
+            with patch('kiro_gateway.streaming.parse_bracket_tool_calls', return_value=[]):
+                try:
+                    async for chunk in stream_kiro_to_openai(
+                        mock_http_client, mock_response, "test-model",
+                        mock_model_cache, mock_auth_manager
+                    ):
+                        pass
+                except ValueError:
+                    print("ValueError caught (expected)")
+        
+        print("Check: response.aclose() should be called...")
+        mock_response.aclose.assert_called()
+        print("✓ response.aclose() was called even on error")
+    
+    @pytest.mark.asyncio
+    async def test_response_closed_on_success(self, mock_http_client, mock_model_cache, mock_auth_manager):
+        """
+        What it does: Verifies that response is closed on successful completion.
+        Goal: Ensure resources are released in finally block.
+        """
+        print("Setup: Mock response for successful streaming...")
+        
+        mock_response = AsyncMock()
+        mock_response.status_code = 200
+        mock_response.aclose = AsyncMock()
+        
+        async def mock_aiter_bytes_success():
+            yield b'{"content":"Hello World"}'
+        
+        mock_response.aiter_bytes = mock_aiter_bytes_success
+        
+        mock_parser = MagicMock()
+        mock_parser.feed.return_value = [{"type": "content", "data": "Hello World"}]
+        mock_parser.get_tool_calls.return_value = []
+        
+        print("Action: Running successful streaming...")
+        chunks = []
+        
+        with patch('kiro_gateway.streaming.AwsEventStreamParser', return_value=mock_parser):
+            with patch('kiro_gateway.streaming.parse_bracket_tool_calls', return_value=[]):
+                async for chunk in stream_kiro_to_openai(
+                    mock_http_client, mock_response, "test-model",
+                    mock_model_cache, mock_auth_manager
+                ):
+                    chunks.append(chunk)
+        
+        print(f"Received chunks: {len(chunks)}")
+        print("Check: response.aclose() should be called...")
+        mock_response.aclose.assert_called()
+        print("✓ response.aclose() was called on successful completion")
+    
+    @pytest.mark.asyncio
+    async def test_aclose_error_does_not_mask_original_error(self, mock_http_client, mock_model_cache, mock_auth_manager):
+        """
+        What it does: Verifies that error in aclose() doesn't mask original error.
+        Goal: Ensure original exception is propagated even if aclose() fails.
+        """
+        print("Setup: Mock response with error in aclose()...")
+        
+        mock_response = AsyncMock()
+        mock_response.status_code = 200
+        mock_response.aclose = AsyncMock(side_effect=ConnectionError("Connection lost"))
+        
+        async def mock_aiter_bytes_with_error():
+            yield b'{"content":"Hello"}'
+            raise RuntimeError("Original error")
+        
+        mock_response.aiter_bytes = mock_aiter_bytes_with_error
+        
+        mock_parser = MagicMock()
+        mock_parser.feed.return_value = [{"type": "content", "data": "Hello"}]
+        mock_parser.get_tool_calls.return_value = []
+        
+        print("Action: Running streaming with error and error in aclose()...")
+        
+        with patch('kiro_gateway.streaming.AwsEventStreamParser', return_value=mock_parser):
+            with patch('kiro_gateway.streaming.parse_bracket_tool_calls', return_value=[]):
+                with pytest.raises(RuntimeError) as exc_info:
+                    async for chunk in stream_kiro_to_openai(
+                        mock_http_client, mock_response, "test-model",
+                        mock_model_cache, mock_auth_manager
+                    ):
+                        pass
+        
+        print(f"Caught exception: {exc_info.value}")
+        # Should be original error, not ConnectionError from aclose()
+        assert "Original error" in str(exc_info.value)
+        print("✓ Original error was not masked by error in aclose()")
+
+
+class TestFirstTokenTimeoutError:
+    """Tests for FirstTokenTimeoutError."""
+    
+    @pytest.mark.asyncio
+    async def test_first_token_timeout_not_caught_by_general_handler(self, mock_http_client, mock_model_cache, mock_auth_manager):
+        """
+        What it does: Verifies that FirstTokenTimeoutError is propagated for retry.
+        Goal: Ensure first token timeout is not handled as regular error.
+        """
+        import asyncio
+        from kiro_gateway.streaming import FirstTokenTimeoutError, stream_kiro_to_openai_internal
+        
+        print("Setup: Mock response with timeout...")
+        
+        mock_response = AsyncMock()
+        mock_response.status_code = 200
+        mock_response.aclose = AsyncMock()
+        
+        # Create generator that will be used
+        async def mock_aiter_bytes():
+            yield b'{"content":"test"}'
+        
+        mock_response.aiter_bytes = mock_aiter_bytes
+        
+        print("Action: Mocking asyncio.wait_for to immediately raise TimeoutError...")
+        
+        # Mock asyncio.wait_for to immediately raise TimeoutError
+        async def mock_wait_for_timeout(*args, **kwargs):
+            raise asyncio.TimeoutError()
+        
+        with patch('kiro_gateway.streaming.asyncio.wait_for', side_effect=mock_wait_for_timeout):
+            with pytest.raises(FirstTokenTimeoutError) as exc_info:
+                async for chunk in stream_kiro_to_openai_internal(
+                    mock_http_client, mock_response, "test-model",
+                    mock_model_cache, mock_auth_manager,
+                    first_token_timeout=30  # Value doesn't matter, wait_for is mocked
+                ):
+                    pass
+        
+        print(f"Caught exception: {exc_info.value}")
+        print("✓ FirstTokenTimeoutError was propagated for retry logic")
+        
+        # Verify response was closed
+        mock_response.aclose.assert_called()
+        print("✓ response.aclose() was called")

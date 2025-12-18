@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 
 # Kiro OpenAI Gateway
+# https://github.com/jwadow/kiro-openai-gateway
 # Copyright (C) 2025 Jwadow
 #
 # This program is free software: you can redistribute it and/or modify
@@ -17,10 +18,10 @@
 # along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 """
-Конфигурация Kiro Gateway.
+Kiro Gateway Configuration.
 
-Централизованное хранение всех настроек, констант и маппингов.
-Загружает переменные окружения и предоставляет типизированный доступ к ним.
+Centralized storage for all settings, constants, and mappings.
+Loads environment variables and provides typed access to them.
 """
 
 import os
@@ -29,36 +30,36 @@ from pathlib import Path
 from typing import Dict, List, Optional
 from dotenv import load_dotenv
 
-# Загрузка переменных окружения
+# Load environment variables
 load_dotenv()
 
 
 def _get_raw_env_value(var_name: str, env_file: str = ".env") -> Optional[str]:
     """
-    Читает значение переменной из .env файла без обработки escape-последовательностей.
+    Read variable value from .env file without processing escape sequences.
     
-    Это необходимо для корректной работы с путями на Windows, где обратные слэши
-    (например, D:\\Projects\\file.json) могут быть ошибочно интерпретированы
-    как escape-последовательности (\\a -> bell, \\n -> newline и т.д.).
+    This is necessary for correct handling of Windows paths where backslashes
+    (e.g., D:\\Projects\\file.json) may be incorrectly interpreted
+    as escape sequences (\\a -> bell, \\n -> newline, etc.).
     
     Args:
-        var_name: Имя переменной окружения
-        env_file: Путь к .env файлу (по умолчанию ".env")
+        var_name: Environment variable name
+        env_file: Path to .env file (default ".env")
     
     Returns:
-        Сырое значение переменной или None если не найдено
+        Raw variable value or None if not found
     """
     env_path = Path(env_file)
     if not env_path.exists():
         return None
     
     try:
-        # Читаем файл как есть, без интерпретации
+        # Read file as-is, without interpretation
         content = env_path.read_text(encoding="utf-8")
         
-        # Ищем переменную с учётом разных форматов:
-        # VAR="value" или VAR='value' или VAR=value
-        # Паттерн захватывает значение в кавычках или без них
+        # Search for variable considering different formats:
+        # VAR="value" or VAR='value' or VAR=value
+        # Pattern captures value with or without quotes
         pattern = rf'^{re.escape(var_name)}=(["\']?)(.+?)\1\s*$'
         
         for line in content.splitlines():
@@ -68,7 +69,7 @@ def _get_raw_env_value(var_name: str, env_file: str = ".env") -> Optional[str]:
             
             match = re.match(pattern, line)
             if match:
-                # Возвращаем значение как есть, без обработки escape-последовательностей
+                # Return value as-is, without processing escape sequences
                 return match.group(2)
     except Exception:
         pass
@@ -76,96 +77,96 @@ def _get_raw_env_value(var_name: str, env_file: str = ".env") -> Optional[str]:
     return None
 
 # ==================================================================================================
-# Настройки прокси-сервера
+# Proxy Server Settings
 # ==================================================================================================
 
-# API ключ для доступа к прокси (клиенты должны передавать его в Authorization header)
+# API key for proxy access (clients must pass it in Authorization header)
 PROXY_API_KEY: str = os.getenv("PROXY_API_KEY", "changeme_proxy_secret")
 
 # ==================================================================================================
 # Kiro API Credentials
 # ==================================================================================================
 
-# Refresh token для обновления access token
+# Refresh token for updating access token
 REFRESH_TOKEN: str = os.getenv("REFRESH_TOKEN", "")
 
-# Profile ARN для AWS CodeWhisperer
+# Profile ARN for AWS CodeWhisperer
 PROFILE_ARN: str = os.getenv("PROFILE_ARN", "")
 
-# Регион AWS (по умолчанию us-east-1)
+# AWS region (default us-east-1)
 REGION: str = os.getenv("KIRO_REGION", "us-east-1")
 
-# Путь к файлу с credentials (опционально, альтернатива .env)
-# Читаем напрямую из .env чтобы избежать проблем с escape-последовательностями на Windows
-# (например, \a в пути D:\Projects\adolf интерпретируется как bell character)
+# Path to credentials file (optional, alternative to .env)
+# Read directly from .env to avoid escape sequence issues on Windows
+# (e.g., \a in path D:\Projects\adolf is interpreted as bell character)
 _raw_creds_file = _get_raw_env_value("KIRO_CREDS_FILE") or os.getenv("KIRO_CREDS_FILE", "")
-# Нормализуем путь для кроссплатформенной совместимости
+# Normalize path for cross-platform compatibility
 KIRO_CREDS_FILE: str = str(Path(_raw_creds_file)) if _raw_creds_file else ""
 
 # ==================================================================================================
 # Kiro API URL Templates
 # ==================================================================================================
 
-# URL для обновления токена
+# URL for token refresh
 KIRO_REFRESH_URL_TEMPLATE: str = "https://prod.{region}.auth.desktop.kiro.dev/refreshToken"
 
-# Хост для основного API (generateAssistantResponse)
+# Host for main API (generateAssistantResponse)
 KIRO_API_HOST_TEMPLATE: str = "https://codewhisperer.{region}.amazonaws.com"
 
-# Хост для Q API (ListAvailableModels)
+# Host for Q API (ListAvailableModels)
 KIRO_Q_HOST_TEMPLATE: str = "https://q.{region}.amazonaws.com"
 
 # ==================================================================================================
-# Настройки токенов
+# Token Settings
 # ==================================================================================================
 
-# Время до истечения токена, когда нужно обновить (в секундах)
-# По умолчанию 10 минут - обновляем токен заранее, чтобы избежать ошибок
+# Time before token expiration when refresh is needed (in seconds)
+# Default 10 minutes - refresh token in advance to avoid errors
 TOKEN_REFRESH_THRESHOLD: int = 600
 
 # ==================================================================================================
-# Retry конфигурация
+# Retry Configuration
 # ==================================================================================================
 
-# Максимальное количество попыток при ошибках
+# Maximum number of retry attempts on errors
 MAX_RETRIES: int = 3
 
-# Базовая задержка между попытками (секунды)
-# Используется exponential backoff: delay * (2 ** attempt)
+# Base delay between attempts (seconds)
+# Uses exponential backoff: delay * (2 ** attempt)
 BASE_RETRY_DELAY: float = 1.0
 
 # ==================================================================================================
-# Маппинг моделей
+# Model Mapping
 # ==================================================================================================
 
-# Внешние имена моделей (OpenAI-совместимые) -> внутренние ID Kiro
-# Клиенты используют внешние имена, а мы конвертируем их во внутренние
+# External model names (OpenAI-compatible) -> internal Kiro IDs
+# Clients use external names, and we convert them to internal ones
 MODEL_MAPPING: Dict[str, str] = {
-    # Claude Opus 4.5 - топовая модель
+    # Claude Opus 4.5 - top-tier model
     "claude-opus-4-5": "claude-opus-4.5",
     "claude-opus-4-5-20251101": "claude-opus-4.5",
     
-    # Claude Haiku 4.5 - быстрая модель
+    # Claude Haiku 4.5 - fast model
     "claude-haiku-4-5": "claude-haiku-4.5",
-    "claude-haiku-4.5": "claude-haiku-4.5",  # Прямой проброс
+    "claude-haiku-4.5": "claude-haiku-4.5",  # Direct passthrough
     
-    # Claude Sonnet 4.5 - улучшенная модель
+    # Claude Sonnet 4.5 - enhanced model
     "claude-sonnet-4-5": "CLAUDE_SONNET_4_5_20250929_V1_0",
     "claude-sonnet-4-5-20250929": "CLAUDE_SONNET_4_5_20250929_V1_0",
     
-    # Claude Sonnet 4 - сбалансированная модель
+    # Claude Sonnet 4 - balanced model
     "claude-sonnet-4": "CLAUDE_SONNET_4_20250514_V1_0",
     "claude-sonnet-4-20250514": "CLAUDE_SONNET_4_20250514_V1_0",
     
-    # Claude 3.7 Sonnet - legacy модель
+    # Claude 3.7 Sonnet - legacy model
     "claude-3-7-sonnet-20250219": "CLAUDE_3_7_SONNET_20250219_V1_0",
     
-    # Алиасы для удобства
+    # Aliases for convenience
     "auto": "claude-sonnet-4.5",
 }
 
-# Список доступных моделей для эндпоинта /v1/models
-# Эти модели будут отображаться клиентам как доступные
+# List of available models for /v1/models endpoint
+# These models will be displayed to clients as available
 AVAILABLE_MODELS: List[str] = [
     "claude-opus-4-5",
     "claude-opus-4-5-20251101",
@@ -178,13 +179,13 @@ AVAILABLE_MODELS: List[str] = [
 ]
 
 # ==================================================================================================
-# Настройки кэша моделей
+# Model Cache Settings
 # ==================================================================================================
 
-# TTL кэша моделей в секундах (1 час)
+# Model cache TTL in seconds (1 hour)
 MODEL_CACHE_TTL: int = 3600
 
-# Максимальное количество input токенов по умолчанию
+# Default maximum number of input tokens
 DEFAULT_MAX_INPUT_TOKENS: int = 200000
 
 # ==================================================================================================
@@ -222,16 +223,16 @@ LOG_LEVEL: str = os.getenv("LOG_LEVEL", "INFO").upper()
 # First Token Timeout Settings (Streaming Retry)
 # ==================================================================================================
 
-# Таймаут ожидания первого токена от модели (в секундах).
-# Если модель не отвечает в течение этого времени, запрос будет отменён и повторён.
-# Это помогает справиться с "зависшими" запросами, когда модель долго думает.
-# По умолчанию: 30 секунд (рекомендуется для production)
-# Установите меньшее значение (например, 10-15) для более агрессивного retry.
+# Timeout for waiting for the first token from the model (in seconds).
+# If the model doesn't respond within this time, the request will be cancelled and retried.
+# This helps handle "stuck" requests when the model takes too long to think.
+# Default: 30 seconds (recommended for production)
+# Set a lower value (e.g., 10-15) for more aggressive retry.
 FIRST_TOKEN_TIMEOUT: float = float(os.getenv("FIRST_TOKEN_TIMEOUT", "15"))
 
-# Максимальное количество попыток при таймауте первого токена.
-# После исчерпания всех попыток будет возвращена ошибка.
-# По умолчанию: 3 попытки
+# Maximum number of attempts on first token timeout.
+# After exhausting all attempts, an error will be returned.
+# Default: 3 attempts
 FIRST_TOKEN_MAX_RETRIES: int = int(os.getenv("FIRST_TOKEN_MAX_RETRIES", "3"))
 
 # ==================================================================================================
@@ -266,12 +267,12 @@ DEBUG_DIR: str = os.getenv("DEBUG_DIR", "debug_logs")
 
 def _warn_deprecated_debug_setting():
     """
-    Выводит предупреждение если используется deprecated DEBUG_LAST_REQUEST.
-    Вызывается при старте приложения.
+    Print warning if deprecated DEBUG_LAST_REQUEST is used.
+    Called at application startup.
     """
     if _DEBUG_LAST_REQUEST_RAW and not _DEBUG_MODE_RAW:
         import sys
-        # ANSI escape codes: желтый текст
+        # ANSI escape codes: yellow text
         YELLOW = "\033[93m"
         RESET = "\033[0m"
         
@@ -288,37 +289,37 @@ def _warn_deprecated_debug_setting():
         print(warning_text, file=sys.stderr)
 
 # ==================================================================================================
-# Версия приложения
+# Application Version
 # ==================================================================================================
 
-APP_VERSION: str = "1.0.6"
+APP_VERSION: str = "1.0.7"
 APP_TITLE: str = "Kiro API Gateway"
 APP_DESCRIPTION: str = "OpenAI-compatible interface for Kiro API (AWS CodeWhisperer). Made by @jwadow"
 
 
 def get_kiro_refresh_url(region: str) -> str:
-    """Возвращает URL для обновления токена для указанного региона."""
+    """Return token refresh URL for the specified region."""
     return KIRO_REFRESH_URL_TEMPLATE.format(region=region)
 
 
 def get_kiro_api_host(region: str) -> str:
-    """Возвращает хост API для указанного региона."""
+    """Return API host for the specified region."""
     return KIRO_API_HOST_TEMPLATE.format(region=region)
 
 
 def get_kiro_q_host(region: str) -> str:
-    """Возвращает хост Q API для указанного региона."""
+    """Return Q API host for the specified region."""
     return KIRO_Q_HOST_TEMPLATE.format(region=region)
 
 
 def get_internal_model_id(external_model: str) -> str:
     """
-    Конвертирует внешнее имя модели во внутренний ID Kiro.
+    Convert external model name to internal Kiro ID.
     
     Args:
-        external_model: Внешнее имя модели (например, "claude-sonnet-4-5")
+        external_model: External model name (e.g., "claude-sonnet-4-5")
     
     Returns:
-        Внутренний ID модели для Kiro API
+        Internal model ID for Kiro API
     """
     return MODEL_MAPPING.get(external_model, external_model)

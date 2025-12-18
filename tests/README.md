@@ -1,1370 +1,1406 @@
-# Тесты для Kiro OpenAI Gateway
+# Tests for Kiro OpenAI Gateway
 
-Комплексный набор unit и integration тестов для Kiro OpenAI Gateway, обеспечивающий полное покрытие всех компонентов системы.
+A comprehensive set of unit and integration tests for Kiro OpenAI Gateway, providing full coverage of all system components.
 
-## Философия тестирования: Полная изоляция от сети
+## Testing Philosophy: Complete Network Isolation
 
-**Ключевой принцип этого тестового набора — 100% изоляция от реальных сетевых запросов.**
+**The key principle of this test suite is 100% isolation from real network requests.**
 
-Это достигается с помощью глобальной, автоматически применяемой фикстуры `block_all_network_calls` в `tests/conftest.py`. Она перехватывает и блокирует любые попытки `httpx.AsyncClient` установить соединение на уровне всего приложения.
+This is achieved through a global, automatically applied fixture `block_all_network_calls` in `tests/conftest.py`. It intercepts and blocks any attempts by `httpx.AsyncClient` to establish connections at the application level.
 
-**Преимущества:**
-1.  **Надежность**: Тесты не зависят от доступности внешних API и состояния сети.
-2.  **Скорость**: Отсутствие реальных сетевых задержек делает выполнение тестов мгновенным.
-3.  **Безопасность**: Гарантирует, что тестовые запуски никогда не используют реальные учетные данные.
+**Benefits:**
+1.  **Reliability**: Tests don't depend on external API availability or network state.
+2.  **Speed**: Absence of real network delays makes test execution instant.
+3.  **Security**: Guarantees that test runs never use real credentials.
 
-Любая попытка совершить несанкционированный сетевой вызов приведет к немедленному падению теста с ошибкой, что обеспечивает строгий контроль над изоляцией.
+Any attempt to make an unauthorized network call will result in immediate test failure with an error, ensuring strict isolation control.
 
-## Запуск тестов
+## Running Tests
 
-### Установка зависимостей
+### Installing Dependencies
 
 ```bash
-# Основные зависимости проекта
+# Main project dependencies
 pip install -r requirements.txt
 
-# Дополнительные зависимости для тестирования
+# Additional testing dependencies
 pip install pytest pytest-asyncio hypothesis
 ```
 
-### Запуск всех тестов
+### Running All Tests
 
 ```bash
-# Запуск всего набора тестов
+# Run the entire test suite
 pytest
 
-# Запуск с подробным выводом
+# Run with verbose output
 pytest -v
 
-# Запуск с подробным выводом и покрытием
+# Run with verbose output and coverage
 pytest -v -s --tb=short
 
-# Запуск только unit-тестов
+# Run only unit tests
 pytest tests/unit/ -v
 
-# Запуск только integration-тестов
+# Run only integration tests
 pytest tests/integration/ -v
 
-# Запуск конкретного файла
+# Run a specific file
 pytest tests/unit/test_auth_manager.py -v
 
-# Запуск конкретного теста
+# Run a specific test
 pytest tests/unit/test_auth_manager.py::TestKiroAuthManagerInitialization::test_initialization_stores_credentials -v
 ```
 
-### Опции pytest
+### pytest Options
 
 ```bash
-# Остановка на первой ошибке
+# Stop on first failure
 pytest -x
 
-# Показать локальные переменные при ошибках
+# Show local variables on errors
 pytest -l
 
-# Запуск в параллельном режиме (требует pytest-xdist)
+# Run in parallel mode (requires pytest-xdist)
 pip install pytest-xdist
 pytest -n auto
 ```
 
-## Структура тестов
+## Test Structure
 
 ```
 tests/
-├── conftest.py                      # Общие фикстуры и утилиты
-├── unit/                            # Unit-тесты отдельных компонентов
-│   ├── test_auth_manager.py        # Тесты KiroAuthManager
-│   ├── test_cache.py               # Тесты ModelInfoCache
-│   ├── test_config.py              # Тесты конфигурации (LOG_LEVEL и др.)
-│   ├── test_converters.py          # Тесты конвертеров OpenAI <-> Kiro
-│   ├── test_debug_logger.py        # Тесты DebugLogger (режимы off/errors/all)
-│   ├── test_parsers.py             # Тесты AwsEventStreamParser
-│   ├── test_streaming.py           # Тесты streaming функций
-│   ├── test_tokenizer.py           # Тесты токенизатора (tiktoken)
-│   ├── test_http_client.py         # Тесты KiroHttpClient
-│   └── test_routes.py              # Тесты API endpoints
-├── integration/                     # Integration-тесты полного flow
-│   └── test_full_flow.py           # End-to-end тесты
-└── README.md                        # Этот файл
+├── conftest.py                      # Shared fixtures and utilities
+├── unit/                            # Unit tests for individual components
+│   ├── test_auth_manager.py        # KiroAuthManager tests
+│   ├── test_cache.py               # ModelInfoCache tests
+│   ├── test_config.py              # Configuration tests (LOG_LEVEL, etc.)
+│   ├── test_converters.py          # OpenAI <-> Kiro converter tests
+│   ├── test_debug_logger.py        # DebugLogger tests (off/errors/all modes)
+│   ├── test_parsers.py             # AwsEventStreamParser tests
+│   ├── test_streaming.py           # Streaming function tests
+│   ├── test_tokenizer.py           # Tokenizer tests (tiktoken)
+│   ├── test_http_client.py         # KiroHttpClient tests
+│   └── test_routes.py              # API endpoint tests
+├── integration/                     # Integration tests for full flow
+│   └── test_full_flow.py           # End-to-end tests
+└── README.md                        # This file
 ```
 
-## Покрытие тестами
+## Test Coverage
 
 ### `conftest.py`
 
-Общие фикстуры и утилиты для всех тестов:
+Shared fixtures and utilities for all tests:
 
-**Фикстуры окружения:**
-- **`mock_env_vars()`**: Мокирует переменные окружения (REFRESH_TOKEN, PROXY_API_KEY)
-  - **Что он делает**: Изолирует тесты от реальных credentials
-  - **Цель**: Безопасность и воспроизводимость тестов
+**Environment Fixtures:**
+- **`mock_env_vars()`**: Mocks environment variables (REFRESH_TOKEN, PROXY_API_KEY)
+  - **What it does**: Isolates tests from real credentials
+  - **Purpose**: Security and test reproducibility
 
-**Фикстуры данных:**
-- **`valid_kiro_token()`**: Возвращает мок Kiro access token
-  - **Что он делает**: Предоставляет предсказуемый токен для тестов
-  - **Цель**: Тестирование без реальных запросов к Kiro
+**Data Fixtures:**
+- **`valid_kiro_token()`**: Returns a mock Kiro access token
+  - **What it does**: Provides a predictable token for tests
+  - **Purpose**: Testing without real Kiro requests
 
-- **`mock_kiro_token_response()`**: Фабрика для создания мок ответов refreshToken
-  - **Что он делает**: Генерирует структуру ответа Kiro auth endpoint
-  - **Цель**: Тестирование различных сценариев обновления токена
+- **`mock_kiro_token_response()`**: Factory for creating mock refreshToken responses
+  - **What it does**: Generates Kiro auth endpoint response structure
+  - **Purpose**: Testing various token refresh scenarios
 
-- **`temp_creds_file()`**: Создаёт временный JSON файл с credentials
-  - **Что он делает**: Предоставляет файл для тестирования загрузки credentials
-  - **Цель**: Тестирование работы с файлами credentials
+- **`temp_creds_file()`**: Creates a temporary JSON file with credentials
+  - **What it does**: Provides a file for testing credentials loading
+  - **Purpose**: Testing credentials file operations
 
-- **`sample_openai_chat_request()`**: Фабрика для создания OpenAI запросов
-  - **Что он делает**: Генерирует валидные chat completion requests
-  - **Цель**: Удобное создание тестовых запросов с разными параметрами
+- **`sample_openai_chat_request()`**: Factory for creating OpenAI requests
+  - **What it does**: Generates valid chat completion requests
+  - **Purpose**: Convenient creation of test requests with different parameters
 
-**Фикстуры безопасности:**
-- **`valid_proxy_api_key()`**: Валидный API ключ прокси
-- **`invalid_proxy_api_key()`**: Невалидный ключ для негативных тестов
-- **`auth_headers()`**: Фабрика для создания Authorization заголовков
+**Security Fixtures:**
+- **`valid_proxy_api_key()`**: Valid proxy API key
+- **`invalid_proxy_api_key()`**: Invalid key for negative tests
+- **`auth_headers()`**: Factory for creating Authorization headers
 
-**Фикстуры HTTP:**
-- **`mock_httpx_client()`**: Мокированный httpx.AsyncClient
-  - **Что он делает**: Изолирует тесты от реальных HTTP запросов
-  - **Цель**: Скорость и надежность тестов
+**HTTP Fixtures:**
+- **`mock_httpx_client()`**: Mocked httpx.AsyncClient
+  - **What it does**: Isolates tests from real HTTP requests
+  - **Purpose**: Test speed and reliability
 
-- **`mock_httpx_response()`**: Фабрика для создания мок HTTP responses
-  - **Что он делает**: Создает настраиваемые httpx.Response объекты
-  - **Цель**: Тестирование различных HTTP сценариев
+- **`mock_httpx_response()`**: Factory for creating mock HTTP responses
+  - **What it does**: Creates configurable httpx.Response objects
+  - **Purpose**: Testing various HTTP scenarios
 
-**Фикстуры приложения:**
-- **`clean_app()`**: Чистый экземпляр FastAPI app
-  - **Что он делает**: Возвращает "чистый" экземпляр приложения
-  - **Цель**: Обеспечить изоляцию состояния приложения между тестами
+**Application Fixtures:**
+- **`clean_app()`**: Clean FastAPI app instance
+  - **What it does**: Returns a "clean" application instance
+  - **Purpose**: Ensure application state isolation between tests
 
-- **`test_client()`**: Синхронный FastAPI TestClient
-- **`async_test_client()`**: Асинхронный test client для async endpoints
+- **`test_client()`**: Synchronous FastAPI TestClient
+- **`async_test_client()`**: Asynchronous test client for async endpoints
 
 ---
 
 ### `tests/unit/test_auth_manager.py`
 
-Unit-тесты для **KiroAuthManager** (управление токенами Kiro).
+Unit tests for **KiroAuthManager** (Kiro token management).
 
 #### `TestKiroAuthManagerInitialization`
 
 - **`test_initialization_stores_credentials()`**:
-  - **Что он делает**: Проверяет корректное сохранение credentials при создании
-  - **Цель**: Убедиться, что все параметры конструктора сохраняются в приватных полях
+  - **What it does**: Verifies correct credential storage during creation
+  - **Purpose**: Ensure all constructor parameters are stored in private fields
 
 - **`test_initialization_sets_correct_urls_for_region()`**:
-  - **Что он делает**: Проверяет формирование URL на основе региона
-  - **Цель**: Убедиться, что URL динамически формируются с правильным регионом
+  - **What it does**: Verifies URL formation based on region
+  - **Purpose**: Ensure URLs are dynamically formed with the correct region
 
 - **`test_initialization_generates_fingerprint()`**:
-  - **Что он делает**: Проверяет генерацию уникального fingerprint
-  - **Цель**: Убедиться, что fingerprint генерируется и имеет корректный формат
+  - **What it does**: Verifies unique fingerprint generation
+  - **Purpose**: Ensure fingerprint is generated and has correct format
 
 #### `TestKiroAuthManagerCredentialsFile`
 
 - **`test_load_credentials_from_file()`**:
-  - **Что он делает**: Проверяет загрузку credentials из JSON файла
-  - **Цель**: Убедиться, что данные корректно читаются из файла
+  - **What it does**: Verifies credentials loading from JSON file
+  - **Purpose**: Ensure data is correctly read from file
 
 - **`test_load_credentials_file_not_found()`**:
-  - **Что он делает**: Проверяет обработку отсутствующего файла credentials
-  - **Цель**: Убедиться, что приложение не падает при отсутствии файла
+  - **What it does**: Verifies handling of missing credentials file
+  - **Purpose**: Ensure application doesn't crash when file is missing
 
 #### `TestKiroAuthManagerTokenExpiration`
 
 - **`test_is_token_expiring_soon_returns_true_when_no_expires_at()`**:
-  - **Что он делает**: Проверяет, что без expires_at токен считается истекающим
-  - **Цель**: Убедиться в безопасном поведении при отсутствии информации о времени
+  - **What it does**: Verifies that without expires_at, token is considered expiring
+  - **Purpose**: Ensure safe behavior when time information is missing
 
 - **`test_is_token_expiring_soon_returns_true_when_expired()`**:
-  - **Что он делает**: Проверяет, что истекший токен определяется корректно
-  - **Цель**: Убедиться, что токен в прошлом считается истекающим
+  - **What it does**: Verifies that expired token is correctly identified
+  - **Purpose**: Ensure token in the past is considered expiring
 
 - **`test_is_token_expiring_soon_returns_true_within_threshold()`**:
-  - **Что он делает**: Проверяет, что токен в пределах threshold считается истекающим
-  - **Цель**: Убедиться, что токен обновляется заранее (за 10 минут до истечения)
+  - **What it does**: Verifies that token within threshold is considered expiring
+  - **Purpose**: Ensure token is refreshed in advance (10 minutes before expiration)
 
 - **`test_is_token_expiring_soon_returns_false_when_valid()`**:
-  - **Что он делает**: Проверяет, что валидный токен не считается истекающим
-  - **Цель**: Убедиться, что токен далеко в будущем не требует обновления
+  - **What it does**: Verifies that valid token is not considered expiring
+  - **Purpose**: Ensure token far in the future doesn't require refresh
 
 #### `TestKiroAuthManagerTokenRefresh`
 
 - **`test_refresh_token_successful()`**:
-  - **Что он делает**: Тестирует успешное обновление токена через Kiro API
-  - **Цель**: Проверить корректную установку access_token и expires_at
+  - **What it does**: Tests successful token refresh via Kiro API
+  - **Purpose**: Verify correct setting of access_token and expires_at
 
 - **`test_refresh_token_updates_refresh_token()`**:
-  - **Что он делает**: Проверяет обновление refresh_token из ответа
-  - **Цель**: Убедиться, что новый refresh_token сохраняется
+  - **What it does**: Verifies refresh_token update from response
+  - **Purpose**: Ensure new refresh_token is saved
 
 - **`test_refresh_token_missing_access_token_raises()`**:
-  - **Что он делает**: Проверяет обработку ответа без accessToken
-  - **Цель**: Убедиться, что выбрасывается исключение при некорректном ответе
+  - **What it does**: Verifies handling of response without accessToken
+  - **Purpose**: Ensure exception is thrown for incorrect response
 
 - **`test_refresh_token_no_refresh_token_raises()`**:
-  - **Что он делает**: Проверяет обработку отсутствия refresh_token
-  - **Цель**: Убедиться, что выбрасывается исключение без refresh_token
+  - **What it does**: Verifies handling of missing refresh_token
+  - **Purpose**: Ensure exception is thrown without refresh_token
 
 #### `TestKiroAuthManagerGetAccessToken`
 
 - **`test_get_access_token_refreshes_when_expired()`**:
-  - **Что он делает**: Проверяет автоматическое обновление истекшего токена
-  - **Цель**: Убедиться, что устаревший токен обновляется перед возвратом
+  - **What it does**: Verifies automatic refresh of expired token
+  - **Purpose**: Ensure stale token is refreshed before return
 
 - **`test_get_access_token_returns_valid_without_refresh()`**:
-  - **Что он делает**: Проверяет возврат валидного токена без лишних запросов
-  - **Цель**: Оптимизация - не делать запросы, если токен еще действителен
+  - **What it does**: Verifies return of valid token without extra requests
+  - **Purpose**: Optimization - don't make requests if token is still valid
 
 - **`test_get_access_token_thread_safety()`**:
-  - **Что он делает**: Проверяет потокобезопасность через asyncio.Lock
-  - **Цель**: Предотвращение race conditions при параллельных вызовах
+  - **What it does**: Verifies thread safety via asyncio.Lock
+  - **Purpose**: Prevent race conditions during parallel calls
 
 #### `TestKiroAuthManagerForceRefresh`
 
 - **`test_force_refresh_updates_token()`**:
-  - **Что он делает**: Проверяет принудительное обновление токена
-  - **Цель**: Убедиться, что force_refresh всегда обновляет токен
+  - **What it does**: Verifies forced token refresh
+  - **Purpose**: Ensure force_refresh always refreshes token
 
 #### `TestKiroAuthManagerProperties`
 
 - **`test_profile_arn_property()`**:
-  - **Что он делает**: Проверяет свойство profile_arn
-  - **Цель**: Убедиться, что profile_arn доступен через property
+  - **What it does**: Verifies profile_arn property
+  - **Purpose**: Ensure profile_arn is accessible via property
 
 - **`test_region_property()`**:
-  - **Что он делает**: Проверяет свойство region
-  - **Цель**: Убедиться, что region доступен через property
+  - **What it does**: Verifies region property
+  - **Purpose**: Ensure region is accessible via property
 
 - **`test_api_host_property()`**:
-  - **Что он делает**: Проверяет свойство api_host
-  - **Цель**: Убедиться, что api_host формируется корректно
+  - **What it does**: Verifies api_host property
+  - **Purpose**: Ensure api_host is formed correctly
 
 - **`test_fingerprint_property()`**:
-  - **Что он делает**: Проверяет свойство fingerprint
-  - **Цель**: Убедиться, что fingerprint доступен через property
+  - **What it does**: Verifies fingerprint property
+  - **Purpose**: Ensure fingerprint is accessible via property
 
 ---
 
 ### `tests/unit/test_cache.py`
 
-Unit-тесты для **ModelInfoCache** (кэш метаданных моделей). **23 теста.**
+Unit tests for **ModelInfoCache** (model metadata cache). **23 tests.**
 
 #### `TestModelInfoCacheInitialization`
 
 - **`test_initialization_creates_empty_cache()`**:
-  - **Что он делает**: Проверяет, что кэш создаётся пустым
-  - **Цель**: Убедиться в корректной инициализации
+  - **What it does**: Verifies that cache is created empty
+  - **Purpose**: Ensure correct initialization
 
 - **`test_initialization_with_custom_ttl()`**:
-  - **Что он делает**: Проверяет создание кэша с кастомным TTL
-  - **Цель**: Убедиться, что TTL можно настроить
+  - **What it does**: Verifies cache creation with custom TTL
+  - **Purpose**: Ensure TTL can be configured
 
 - **`test_initialization_last_update_is_none()`**:
-  - **Что он делает**: Проверяет, что last_update_time изначально None
-  - **Цель**: Убедиться, что время обновления не установлено до первого update
+  - **What it does**: Verifies that last_update_time is initially None
+  - **Purpose**: Ensure update time is not set before first update
 
 #### `TestModelInfoCacheUpdate`
 
 - **`test_update_populates_cache()`**:
-  - **Что он делает**: Проверяет заполнение кэша данными
-  - **Цель**: Убедиться, что update() корректно сохраняет модели
+  - **What it does**: Verifies cache population with data
+  - **Purpose**: Ensure update() correctly saves models
 
 - **`test_update_sets_last_update_time()`**:
-  - **Что он делает**: Проверяет установку времени последнего обновления
-  - **Цель**: Убедиться, что last_update_time устанавливается после update
+  - **What it does**: Verifies setting of last update time
+  - **Purpose**: Ensure last_update_time is set after update
 
 - **`test_update_replaces_existing_data()`**:
-  - **Что он делает**: Проверяет замену данных при повторном update
-  - **Цель**: Убедиться, что старые данные полностью заменяются
+  - **What it does**: Verifies data replacement on repeated update
+  - **Purpose**: Ensure old data is completely replaced
 
 - **`test_update_with_empty_list()`**:
-  - **Что он делает**: Проверяет обновление пустым списком
-  - **Цель**: Убедиться, что кэш очищается при пустом update
+  - **What it does**: Verifies update with empty list
+  - **Purpose**: Ensure cache is cleared on empty update
 
 #### `TestModelInfoCacheGet`
 
 - **`test_get_returns_model_info()`**:
-  - **Что он делает**: Проверяет получение информации о модели
-  - **Цель**: Убедиться, что get() возвращает корректные данные
+  - **What it does**: Verifies retrieval of model information
+  - **Purpose**: Ensure get() returns correct data
 
 - **`test_get_returns_none_for_unknown_model()`**:
-  - **Что он делает**: Проверяет возврат None для неизвестной модели
-  - **Цель**: Убедиться, что get() не падает при отсутствии модели
+  - **What it does**: Verifies None return for unknown model
+  - **Purpose**: Ensure get() doesn't crash when model is missing
 
 - **`test_get_from_empty_cache()`**:
-  - **Что он делает**: Проверяет get() из пустого кэша
-  - **Цель**: Убедиться, что пустой кэш не вызывает ошибок
+  - **What it does**: Verifies get() from empty cache
+  - **Purpose**: Ensure empty cache doesn't cause errors
 
 #### `TestModelInfoCacheGetMaxInputTokens`
 
 - **`test_get_max_input_tokens_returns_value()`**:
-  - **Что он делает**: Проверяет получение maxInputTokens для модели
-  - **Цель**: Убедиться, что значение извлекается из tokenLimits
+  - **What it does**: Verifies retrieval of maxInputTokens for model
+  - **Purpose**: Ensure value is extracted from tokenLimits
 
 - **`test_get_max_input_tokens_returns_default_for_unknown()`**:
-  - **Что он делает**: Проверяет возврат дефолта для неизвестной модели
-  - **Цель**: Убедиться, что возвращается DEFAULT_MAX_INPUT_TOKENS
+  - **What it does**: Verifies default return for unknown model
+  - **Purpose**: Ensure DEFAULT_MAX_INPUT_TOKENS is returned
 
 - **`test_get_max_input_tokens_returns_default_when_no_token_limits()`**:
-  - **Что он делает**: Проверяет возврат дефолта при отсутствии tokenLimits
-  - **Цель**: Убедиться, что модель без tokenLimits не ломает логику
+  - **What it does**: Verifies default return when tokenLimits is missing
+  - **Purpose**: Ensure model without tokenLimits doesn't break logic
 
 - **`test_get_max_input_tokens_returns_default_when_max_input_is_none()`**:
-  - **Что он делает**: Проверяет возврат дефолта при maxInputTokens=None
-  - **Цель**: Убедиться, что None в tokenLimits обрабатывается корректно
+  - **What it does**: Verifies default return when maxInputTokens=None
+  - **Purpose**: Ensure None in tokenLimits is handled correctly
 
-#### `TestModelInfoCacheIsEmpty` и `TestModelInfoCacheIsStale`
+#### `TestModelInfoCacheIsEmpty` and `TestModelInfoCacheIsStale`
 
-- **`test_is_empty_returns_true_for_new_cache()`**: Проверяет is_empty() для нового кэша
-- **`test_is_empty_returns_false_after_update()`**: Проверяет is_empty() после заполнения
-- **`test_is_stale_returns_true_for_new_cache()`**: Проверяет is_stale() для нового кэша
-- **`test_is_stale_returns_false_after_recent_update()`**: Проверяет is_stale() сразу после обновления
-- **`test_is_stale_returns_true_after_ttl_expires()`**: Проверяет is_stale() после истечения TTL
+- **`test_is_empty_returns_true_for_new_cache()`**: Verifies is_empty() for new cache
+- **`test_is_empty_returns_false_after_update()`**: Verifies is_empty() after population
+- **`test_is_stale_returns_true_for_new_cache()`**: Verifies is_stale() for new cache
+- **`test_is_stale_returns_false_after_recent_update()`**: Verifies is_stale() right after update
+- **`test_is_stale_returns_true_after_ttl_expires()`**: Verifies is_stale() after TTL expiration
 
 #### `TestModelInfoCacheGetAllModelIds`
 
-- **`test_get_all_model_ids_returns_empty_for_new_cache()`**: Проверяет get_all_model_ids() для пустого кэша
-- **`test_get_all_model_ids_returns_all_ids()`**: Проверяет get_all_model_ids() для заполненного кэша
+- **`test_get_all_model_ids_returns_empty_for_new_cache()`**: Verifies get_all_model_ids() for empty cache
+- **`test_get_all_model_ids_returns_all_ids()`**: Verifies get_all_model_ids() for populated cache
 
 #### `TestModelInfoCacheThreadSafety`
 
 - **`test_concurrent_updates_dont_corrupt_cache()`**:
-  - **Что он делает**: Проверяет потокобезопасность при параллельных update
-  - **Цель**: Убедиться, что asyncio.Lock защищает от race conditions
+  - **What it does**: Verifies thread safety during parallel updates
+  - **Purpose**: Ensure asyncio.Lock protects against race conditions
 
 - **`test_concurrent_reads_are_safe()`**:
-  - **Что он делает**: Проверяет безопасность параллельных чтений
-  - **Цель**: Убедиться, что множественные get() не вызывают проблем
+  - **What it does**: Verifies safety of parallel reads
+  - **Purpose**: Ensure multiple get() calls don't cause issues
 
 ---
 
 ### `tests/unit/test_config.py`
 
-Unit-тесты для **модуля конфигурации** (загрузка настроек из переменных окружения). **9 тестов.**
+Unit tests for **configuration module** (loading settings from environment variables). **9 tests.**
 
 #### `TestLogLevelConfig`
 
-Тесты для настройки LOG_LEVEL.
+Tests for LOG_LEVEL configuration.
 
 - **`test_default_log_level_is_info()`**:
-  - **Что он делает**: Проверяет, что LOG_LEVEL по умолчанию равен INFO
-  - **Цель**: Убедиться, что без переменной окружения используется INFO
+  - **What it does**: Verifies that default LOG_LEVEL is INFO
+  - **Purpose**: Ensure INFO is used without environment variable
 
 - **`test_log_level_from_environment()`**:
-  - **Что он делает**: Проверяет загрузку LOG_LEVEL из переменной окружения
-  - **Цель**: Убедиться, что значение из окружения используется
+  - **What it does**: Verifies LOG_LEVEL loading from environment variable
+  - **Purpose**: Ensure value from environment is used
 
 - **`test_log_level_uppercase_conversion()`**:
-  - **Что он делает**: Проверяет преобразование LOG_LEVEL в верхний регистр
-  - **Цель**: Убедиться, что lowercase значение преобразуется в uppercase
+  - **What it does**: Verifies LOG_LEVEL conversion to uppercase
+  - **Purpose**: Ensure lowercase value is converted to uppercase
 
 - **`test_log_level_trace()`**:
-  - **Что он делает**: Проверяет установку LOG_LEVEL=TRACE
-  - **Цель**: Убедиться, что TRACE уровень поддерживается
+  - **What it does**: Verifies LOG_LEVEL=TRACE setting
+  - **Purpose**: Ensure TRACE level is supported
 
 - **`test_log_level_error()`**:
-  - **Что он делает**: Проверяет установку LOG_LEVEL=ERROR
-  - **Цель**: Убедиться, что ERROR уровень поддерживается
+  - **What it does**: Verifies LOG_LEVEL=ERROR setting
+  - **Purpose**: Ensure ERROR level is supported
 
 - **`test_log_level_critical()`**:
-  - **Что он делает**: Проверяет установку LOG_LEVEL=CRITICAL
-  - **Цель**: Убедиться, что CRITICAL уровень поддерживается
+  - **What it does**: Verifies LOG_LEVEL=CRITICAL setting
+  - **Purpose**: Ensure CRITICAL level is supported
 
 #### `TestToolDescriptionMaxLengthConfig`
 
-Тесты для настройки TOOL_DESCRIPTION_MAX_LENGTH.
+Tests for TOOL_DESCRIPTION_MAX_LENGTH configuration.
 
 - **`test_default_tool_description_max_length()`**:
-  - **Что он делает**: Проверяет значение по умолчанию для TOOL_DESCRIPTION_MAX_LENGTH
-  - **Цель**: Убедиться, что по умолчанию используется 10000
+  - **What it does**: Verifies default value for TOOL_DESCRIPTION_MAX_LENGTH
+  - **Purpose**: Ensure default is 10000
 
 - **`test_tool_description_max_length_from_environment()`**:
-  - **Что он делает**: Проверяет загрузку TOOL_DESCRIPTION_MAX_LENGTH из окружения
-  - **Цель**: Убедиться, что значение из окружения используется
+  - **What it does**: Verifies TOOL_DESCRIPTION_MAX_LENGTH loading from environment
+  - **Purpose**: Ensure value from environment is used
 
 - **`test_tool_description_max_length_zero_disables()`**:
-  - **Что он делает**: Проверяет, что 0 отключает функцию
-  - **Цель**: Убедиться, что TOOL_DESCRIPTION_MAX_LENGTH=0 работает
+  - **What it does**: Verifies that 0 disables the feature
+  - **Purpose**: Ensure TOOL_DESCRIPTION_MAX_LENGTH=0 works
 
 ---
 
 ### `tests/unit/test_debug_logger.py`
 
-Unit-тесты для **DebugLogger** (отладочное логирование запросов). **26 тестов.**
+Unit tests for **DebugLogger** (debug request logging). **26 tests.**
 
 #### `TestDebugLoggerModeOff`
 
-Тесты для режима DEBUG_MODE=off.
+Tests for DEBUG_MODE=off mode.
 
 - **`test_prepare_new_request_does_nothing()`**:
-  - **Что он делает**: Проверяет, что prepare_new_request ничего не делает в режиме off
-  - **Цель**: Убедиться, что в режиме off директория не создаётся
+  - **What it does**: Verifies that prepare_new_request does nothing in off mode
+  - **Purpose**: Ensure directory is not created in off mode
 
 - **`test_log_request_body_does_nothing()`**:
-  - **Что он делает**: Проверяет, что log_request_body ничего не делает в режиме off
-  - **Цель**: Убедиться, что данные не записываются
+  - **What it does**: Verifies that log_request_body does nothing in off mode
+  - **Purpose**: Ensure data is not written
 
 #### `TestDebugLoggerModeAll`
 
-Тесты для режима DEBUG_MODE=all.
+Tests for DEBUG_MODE=all mode.
 
 - **`test_prepare_new_request_clears_directory()`**:
-  - **Что он делает**: Проверяет, что prepare_new_request очищает директорию в режиме all
-  - **Цель**: Убедиться, что старые логи удаляются
+  - **What it does**: Verifies that prepare_new_request clears directory in all mode
+  - **Purpose**: Ensure old logs are deleted
 
 - **`test_log_request_body_writes_immediately()`**:
-  - **Что он делает**: Проверяет, что log_request_body пишет сразу в файл в режиме all
-  - **Цель**: Убедиться, что данные записываются немедленно
+  - **What it does**: Verifies that log_request_body writes immediately to file in all mode
+  - **Purpose**: Ensure data is written immediately
 
 - **`test_log_kiro_request_body_writes_immediately()`**:
-  - **Что он делает**: Проверяет, что log_kiro_request_body пишет сразу в файл в режиме all
-  - **Цель**: Убедиться, что Kiro payload записывается немедленно
+  - **What it does**: Verifies that log_kiro_request_body writes immediately to file in all mode
+  - **Purpose**: Ensure Kiro payload is written immediately
 
 - **`test_log_raw_chunk_appends_to_file()`**:
-  - **Что он делает**: Проверяет, что log_raw_chunk дописывает в файл в режиме all
-  - **Цель**: Убедиться, что чанки накапливаются
+  - **What it does**: Verifies that log_raw_chunk appends to file in all mode
+  - **Purpose**: Ensure chunks accumulate
 
 #### `TestDebugLoggerModeErrors`
 
-Тесты для режима DEBUG_MODE=errors.
+Tests for DEBUG_MODE=errors mode.
 
 - **`test_log_request_body_buffers_data()`**:
-  - **Что он делает**: Проверяет, что log_request_body буферизует данные в режиме errors
-  - **Цель**: Убедиться, что данные не записываются сразу
+  - **What it does**: Verifies that log_request_body buffers data in errors mode
+  - **Purpose**: Ensure data is not written immediately
 
 - **`test_flush_on_error_writes_buffers()`**:
-  - **Что он делает**: Проверяет, что flush_on_error записывает буферы в файлы
-  - **Цель**: Убедиться, что при ошибке данные сохраняются
+  - **What it does**: Verifies that flush_on_error writes buffers to files
+  - **Purpose**: Ensure data is saved on error
 
 - **`test_flush_on_error_clears_buffers()`**:
-  - **Что он делает**: Проверяет, что flush_on_error очищает буферы после записи
-  - **Цель**: Убедиться, что буферы не накапливаются между запросами
+  - **What it does**: Verifies that flush_on_error clears buffers after writing
+  - **Purpose**: Ensure buffers don't accumulate between requests
 
 - **`test_discard_buffers_clears_without_writing()`**:
-  - **Что он делает**: Проверяет, что discard_buffers очищает буферы без записи
-  - **Цель**: Убедиться, что успешные запросы не оставляют логов
+  - **What it does**: Verifies that discard_buffers clears buffers without writing
+  - **Purpose**: Ensure successful requests don't leave logs
 
 - **`test_flush_on_error_writes_error_info_in_mode_all()`**:
-  - **Что он делает**: Проверяет, что flush_on_error записывает error_info.json в режиме all
-  - **Цель**: Убедиться, что информация об ошибке сохраняется в обоих режимах
+  - **What it does**: Verifies that flush_on_error writes error_info.json in all mode
+  - **Purpose**: Ensure error information is saved in both modes
 
 #### `TestDebugLoggerLogErrorInfo`
 
-Тесты для метода log_error_info().
+Tests for log_error_info() method.
 
 - **`test_log_error_info_writes_in_mode_all()`**:
-  - **Что он делает**: Проверяет, что log_error_info записывает файл в режиме all
-  - **Цель**: Убедиться, что error_info.json создаётся при ошибках
+  - **What it does**: Verifies that log_error_info writes file in all mode
+  - **Purpose**: Ensure error_info.json is created on errors
 
 - **`test_log_error_info_writes_in_mode_errors()`**:
-  - **Что он делает**: Проверяет, что log_error_info записывает файл в режиме errors
-  - **Цель**: Убедиться, что метод работает в обоих режимах
+  - **What it does**: Verifies that log_error_info writes file in errors mode
+  - **Purpose**: Ensure method works in both modes
 
 - **`test_log_error_info_does_nothing_in_mode_off()`**:
-  - **Что он делает**: Проверяет, что log_error_info ничего не делает в режиме off
-  - **Цель**: Убедиться, что в режиме off файлы не создаются
+  - **What it does**: Verifies that log_error_info does nothing in off mode
+  - **Purpose**: Ensure files are not created in off mode
 
 #### `TestDebugLoggerHelperMethods`
 
-Тесты для вспомогательных методов DebugLogger.
+Tests for DebugLogger helper methods.
 
-- **`test_is_enabled_returns_true_for_errors()`**: Проверяет _is_enabled() для режима errors
-- **`test_is_enabled_returns_true_for_all()`**: Проверяет _is_enabled() для режима all
-- **`test_is_enabled_returns_false_for_off()`**: Проверяет _is_enabled() для режима off
-- **`test_is_immediate_write_returns_true_for_all()`**: Проверяет _is_immediate_write() для режима all
-- **`test_is_immediate_write_returns_false_for_errors()`**: Проверяет _is_immediate_write() для режима errors
+- **`test_is_enabled_returns_true_for_errors()`**: Verifies _is_enabled() for errors mode
+- **`test_is_enabled_returns_true_for_all()`**: Verifies _is_enabled() for all mode
+- **`test_is_enabled_returns_false_for_off()`**: Verifies _is_enabled() for off mode
+- **`test_is_immediate_write_returns_true_for_all()`**: Verifies _is_immediate_write() for all mode
+- **`test_is_immediate_write_returns_false_for_errors()`**: Verifies _is_immediate_write() for errors mode
 
 #### `TestDebugLoggerJsonHandling`
 
-Тесты для обработки JSON в DebugLogger.
+Tests for JSON handling in DebugLogger.
 
 - **`test_log_request_body_formats_json_pretty()`**:
-  - **Что он делает**: Проверяет, что JSON форматируется красиво
-  - **Цель**: Убедиться, что JSON читаем в файле
+  - **What it does**: Verifies that JSON is formatted prettily
+  - **Purpose**: Ensure JSON is readable in file
 
 - **`test_log_request_body_handles_invalid_json()`**:
-  - **Что он делает**: Проверяет обработку невалидного JSON
-  - **Цель**: Убедиться, что невалидный JSON записывается как есть
+  - **What it does**: Verifies handling of invalid JSON
+  - **Purpose**: Ensure invalid JSON is written as-is
 
 #### `TestDebugLoggerAppLogsCapture`
 
-Тесты для захвата логов приложения (app_logs.txt).
+Tests for application log capture (app_logs.txt).
 
 - **`test_prepare_new_request_sets_up_log_capture()`**:
-  - **Что он делает**: Проверяет, что prepare_new_request настраивает захват логов
-  - **Цель**: Убедиться, что sink для логов создаётся
+  - **What it does**: Verifies that prepare_new_request sets up log capture
+  - **Purpose**: Ensure sink for logs is created
 
 - **`test_flush_on_error_writes_app_logs_in_mode_errors()`**:
-  - **Что он делает**: Проверяет, что flush_on_error записывает app_logs.txt в режиме errors
-  - **Цель**: Убедиться, что логи приложения сохраняются при ошибках
+  - **What it does**: Verifies that flush_on_error writes app_logs.txt in errors mode
+  - **Purpose**: Ensure application logs are saved on errors
 
 - **`test_discard_buffers_saves_logs_in_mode_all()`**:
-  - **Что он делает**: Проверяет, что discard_buffers сохраняет логи в режиме all
-  - **Цель**: Убедиться, что даже успешные запросы сохраняют логи в режиме all
+  - **What it does**: Verifies that discard_buffers saves logs in all mode
+  - **Purpose**: Ensure even successful requests save logs in all mode
 
 - **`test_discard_buffers_does_not_save_logs_in_mode_errors()`**:
-  - **Что он делает**: Проверяет, что discard_buffers НЕ сохраняет логи в режиме errors
-  - **Цель**: Убедиться, что успешные запросы не оставляют логов в режиме errors
+  - **What it does**: Verifies that discard_buffers does NOT save logs in errors mode
+  - **Purpose**: Ensure successful requests don't leave logs in errors mode
 
 - **`test_clear_app_logs_buffer_removes_sink()`**:
-  - **Что он делает**: Проверяет, что _clear_app_logs_buffer удаляет sink
-  - **Цель**: Убедиться, что sink корректно удаляется
+  - **What it does**: Verifies that _clear_app_logs_buffer removes sink
+  - **Purpose**: Ensure sink is correctly removed
 
 - **`test_app_logs_not_saved_when_empty()`**:
-  - **Что он делает**: Проверяет, что пустые логи не создают файл
-  - **Цель**: Убедиться, что app_logs.txt не создаётся если логов нет
+  - **What it does**: Verifies that empty logs don't create file
+  - **Purpose**: Ensure app_logs.txt is not created if there are no logs
 
 ---
 
 ### `tests/unit/test_converters.py`
 
-Unit-тесты для конвертеров **OpenAI <-> Kiro**. **68 тестов.**
+Unit tests for **OpenAI <-> Kiro** converters. **68 tests.**
 
 #### `TestExtractTextContent`
 
-- **`test_extracts_from_string()`**: Проверяет извлечение текста из строки
-- **`test_extracts_from_none()`**: Проверяет обработку None
-- **`test_extracts_from_list_with_text_type()`**: Проверяет извлечение из списка с type=text
-- **`test_extracts_from_list_with_text_key()`**: Проверяет извлечение из списка с ключом text
-- **`test_extracts_from_list_with_strings()`**: Проверяет извлечение из списка строк
-- **`test_extracts_from_mixed_list()`**: Проверяет извлечение из смешанного списка
-- **`test_converts_other_types_to_string()`**: Проверяет конвертацию других типов в строку
-- **`test_handles_empty_list()`**: Проверяет обработку пустого списка
+- **`test_extracts_from_string()`**: Verifies text extraction from string
+- **`test_extracts_from_none()`**: Verifies None handling
+- **`test_extracts_from_list_with_text_type()`**: Verifies extraction from list with type=text
+- **`test_extracts_from_list_with_text_key()`**: Verifies extraction from list with text key
+- **`test_extracts_from_list_with_strings()`**: Verifies extraction from list of strings
+- **`test_extracts_from_mixed_list()`**: Verifies extraction from mixed list
+- **`test_converts_other_types_to_string()`**: Verifies conversion of other types to string
+- **`test_handles_empty_list()`**: Verifies empty list handling
 
 #### `TestMergeAdjacentMessages`
 
-- **`test_merges_adjacent_user_messages()`**: Проверяет объединение соседних user сообщений
-- **`test_preserves_alternating_messages()`**: Проверяет сохранение чередующихся сообщений
-- **`test_handles_empty_list()`**: Проверяет обработку пустого списка
-- **`test_handles_single_message()`**: Проверяет обработку одного сообщения
-- **`test_merges_multiple_adjacent_groups()`**: Проверяет объединение нескольких групп
+- **`test_merges_adjacent_user_messages()`**: Verifies merging of adjacent user messages
+- **`test_preserves_alternating_messages()`**: Verifies preservation of alternating messages
+- **`test_handles_empty_list()`**: Verifies empty list handling
+- **`test_handles_single_message()`**: Verifies single message handling
+- **`test_merges_multiple_adjacent_groups()`**: Verifies merging of multiple groups
 
-**Новые тесты для обработки tool messages (role="tool"):**
+**New tests for tool message handling (role="tool"):**
 
 - **`test_converts_tool_message_to_user_with_tool_result()`**:
-  - **Что он делает**: Проверяет преобразование tool message в user message с tool_result
-  - **Цель**: Убедиться, что role="tool" преобразуется в user message с tool_results content
+  - **What it does**: Verifies conversion of tool message to user message with tool_result
+  - **Purpose**: Ensure role="tool" is converted to user message with tool_results content
 
 - **`test_converts_multiple_tool_messages_to_single_user_message()`**:
-  - **Что он делает**: Проверяет объединение нескольких tool messages в один user message
-  - **Цель**: Убедиться, что несколько tool results объединяются в один user message
+  - **What it does**: Verifies merging of multiple tool messages into single user message
+  - **Purpose**: Ensure multiple tool results are merged into one user message
 
 - **`test_tool_message_followed_by_user_message()`**:
-  - **Что он делает**: Проверяет tool message перед user message
-  - **Цель**: Убедиться, что tool results и user message объединяются
+  - **What it does**: Verifies tool message before user message
+  - **Purpose**: Ensure tool results and user message are merged
 
 - **`test_assistant_tool_user_sequence()`**:
-  - **Что он делает**: Проверяет последовательность assistant -> tool -> user
-  - **Цель**: Убедиться, что tool message корректно вставляется между assistant и user
+  - **What it does**: Verifies assistant -> tool -> user sequence
+  - **Purpose**: Ensure tool message is correctly inserted between assistant and user
 
 - **`test_tool_message_with_empty_content()`**:
-  - **Что он делает**: Проверяет tool message с пустым content
-  - **Цель**: Убедиться, что пустой результат заменяется на "(empty result)"
+  - **What it does**: Verifies tool message with empty content
+  - **Purpose**: Ensure empty result is replaced with "(empty result)"
 
 - **`test_tool_message_with_none_tool_call_id()`**:
-  - **Что он делает**: Проверяет tool message без tool_call_id
-  - **Цель**: Убедиться, что отсутствующий tool_call_id заменяется на пустую строку
+  - **What it does**: Verifies tool message without tool_call_id
+  - **Purpose**: Ensure missing tool_call_id is replaced with empty string
 
 - **`test_merges_list_contents_correctly()`**:
-  - **Что он делает**: Проверяет объединение list contents
-  - **Цель**: Убедиться, что списки объединяются корректно
+  - **What it does**: Verifies list contents merging
+  - **Purpose**: Ensure lists are merged correctly
 
 - **`test_merges_adjacent_assistant_tool_calls()`**:
-  - **Что он делает**: Проверяет объединение tool_calls при merge соседних assistant сообщений
-  - **Цель**: Убедиться, что tool_calls из всех assistant сообщений сохраняются при объединении
+  - **What it does**: Verifies tool_calls merging when merging adjacent assistant messages
+  - **Purpose**: Ensure tool_calls from all assistant messages are preserved when merging
 
 - **`test_merges_three_adjacent_assistant_tool_calls()`**:
-  - **Что он делает**: Проверяет объединение tool_calls из трёх assistant сообщений
-  - **Цель**: Убедиться, что все tool_calls сохраняются при объединении более двух сообщений
+  - **What it does**: Verifies tool_calls merging from three assistant messages
+  - **Purpose**: Ensure all tool_calls are preserved when merging more than two messages
 
 - **`test_merges_assistant_with_and_without_tool_calls()`**:
-  - **Что он делает**: Проверяет объединение assistant с tool_calls и без
-  - **Цель**: Убедиться, что tool_calls корректно инициализируются при объединении
+  - **What it does**: Verifies merging assistant with and without tool_calls
+  - **Purpose**: Ensure tool_calls are correctly initialized when merging
 
 #### `TestBuildKiroPayloadToolCallsIntegration`
 
-Интеграционные тесты для полного flow tool_calls от OpenAI до Kiro формата.
+Integration tests for full tool_calls flow from OpenAI to Kiro format.
 
 - **`test_multiple_assistant_tool_calls_with_results()`**:
-  - **Что он делает**: Проверяет полный сценарий с несколькими assistant tool_calls и их результатами
-  - **Цель**: Убедиться, что все toolUses и toolResults корректно связываются в Kiro payload
+  - **What it does**: Verifies full scenario with multiple assistant tool_calls and their results
+  - **Purpose**: Ensure all toolUses and toolResults are correctly linked in Kiro payload
 
 #### `TestBuildKiroHistory`
 
-- **`test_builds_user_message()`**: Проверяет построение user сообщения
-- **`test_builds_assistant_message()`**: Проверяет построение assistant сообщения
-- **`test_ignores_system_messages()`**: Проверяет игнорирование system сообщений
-- **`test_builds_conversation_history()`**: Проверяет построение полной истории разговора
-- **`test_handles_empty_list()`**: Проверяет обработку пустого списка
+- **`test_builds_user_message()`**: Verifies user message building
+- **`test_builds_assistant_message()`**: Verifies assistant message building
+- **`test_ignores_system_messages()`**: Verifies system message ignoring
+- **`test_builds_conversation_history()`**: Verifies full conversation history building
+- **`test_handles_empty_list()`**: Verifies empty list handling
 
-#### `TestExtractToolResults` и `TestExtractToolUses`
+#### `TestExtractToolResults` and `TestExtractToolUses`
 
-- **`test_extracts_tool_results_from_list()`**: Проверяет извлечение tool results из списка
-- **`test_returns_empty_for_string_content()`**: Проверяет возврат пустого списка для строки
-- **`test_extracts_from_tool_calls_field()`**: Проверяет извлечение из поля tool_calls
-- **`test_extracts_from_content_list()`**: Проверяет извлечение из content списка
+- **`test_extracts_tool_results_from_list()`**: Verifies tool results extraction from list
+- **`test_returns_empty_for_string_content()`**: Verifies empty list return for string
+- **`test_extracts_from_tool_calls_field()`**: Verifies extraction from tool_calls field
+- **`test_extracts_from_content_list()`**: Verifies extraction from content list
 
 #### `TestProcessToolsWithLongDescriptions`
 
-Тесты для функции обработки tools с длинными descriptions (Tool Documentation Reference Pattern).
+Tests for tools processing function with long descriptions (Tool Documentation Reference Pattern).
 
 - **`test_returns_none_and_empty_string_for_none_tools()`**:
-  - **Что он делает**: Проверяет обработку None вместо списка tools
-  - **Цель**: Убедиться, что None возвращает (None, "")
+  - **What it does**: Verifies handling of None instead of tools list
+  - **Purpose**: Ensure None returns (None, "")
 
 - **`test_returns_none_and_empty_string_for_empty_list()`**:
-  - **Что он делает**: Проверяет обработку пустого списка tools
-  - **Цель**: Убедиться, что пустой список возвращает (None, "")
+  - **What it does**: Verifies handling of empty tools list
+  - **Purpose**: Ensure empty list returns (None, "")
 
 - **`test_short_description_unchanged()`**:
-  - **Что он делает**: Проверяет, что короткие descriptions не изменяются
-  - **Цель**: Убедиться, что tools с короткими descriptions остаются как есть
+  - **What it does**: Verifies that short descriptions are not changed
+  - **Purpose**: Ensure tools with short descriptions remain as-is
 
 - **`test_long_description_moved_to_system_prompt()`**:
-  - **Что он делает**: Проверяет перенос длинного description в system prompt
-  - **Цель**: Убедиться, что длинные descriptions переносятся корректно с reference в tool
+  - **What it does**: Verifies moving long description to system prompt
+  - **Purpose**: Ensure long descriptions are moved correctly with reference in tool
 
 - **`test_mixed_short_and_long_descriptions()`**:
-  - **Что он делает**: Проверяет обработку смешанного списка tools
-  - **Цель**: Убедиться, что короткие остаются, длинные переносятся
+  - **What it does**: Verifies handling of mixed tools list
+  - **Purpose**: Ensure short ones stay, long ones are moved
 
 - **`test_preserves_tool_parameters()`**:
-  - **Что он делает**: Проверяет сохранение parameters при переносе description
-  - **Цель**: Убедиться, что parameters не теряются
+  - **What it does**: Verifies parameters preservation when moving description
+  - **Purpose**: Ensure parameters are not lost
 
 - **`test_disabled_when_limit_is_zero()`**:
-  - **Что он делает**: Проверяет отключение функции при лимите 0
-  - **Цель**: Убедиться, что при TOOL_DESCRIPTION_MAX_LENGTH=0 tools не изменяются
+  - **What it does**: Verifies feature disabling when limit is 0
+  - **Purpose**: Ensure tools are not changed when TOOL_DESCRIPTION_MAX_LENGTH=0
 
 - **`test_non_function_tools_unchanged()`**:
-  - **Что он делает**: Проверяет, что non-function tools не изменяются
-  - **Цель**: Убедиться, что только function tools обрабатываются
+  - **What it does**: Verifies that non-function tools are not changed
+  - **Purpose**: Ensure only function tools are processed
 
 - **`test_multiple_long_descriptions_all_moved()`**:
-  - **Что он делает**: Проверяет перенос нескольких длинных descriptions
-  - **Цель**: Убедиться, что все длинные descriptions переносятся
+  - **What it does**: Verifies moving multiple long descriptions
+  - **Purpose**: Ensure all long descriptions are moved
 
 - **`test_empty_description_unchanged()`**:
-  - **Что он делает**: Проверяет обработку пустого description
-  - **Цель**: Убедиться, что пустой description не вызывает ошибок
+  - **What it does**: Verifies handling of empty description
+  - **Purpose**: Ensure empty description doesn't cause errors
 
 - **`test_none_description_unchanged()`**:
-  - **Что он делает**: Проверяет обработку None description
-  - **Цель**: Убедиться, что None description не вызывает ошибок
+  - **What it does**: Verifies handling of None description
+  - **Purpose**: Ensure None description doesn't cause errors
 
 #### `TestSanitizeJsonSchema`
 
-Тесты для функции `_sanitize_json_schema`, которая очищает JSON Schema от полей, не поддерживаемых Kiro API.
+Tests for `_sanitize_json_schema` function that cleans JSON Schema from fields not supported by Kiro API.
 
 - **`test_returns_empty_dict_for_none()`**:
-  - **Что он делает**: Проверяет обработку None
-  - **Цель**: Убедиться, что None возвращает пустой словарь
+  - **What it does**: Verifies None handling
+  - **Purpose**: Ensure None returns empty dict
 
 - **`test_returns_empty_dict_for_empty_dict()`**:
-  - **Что он делает**: Проверяет обработку пустого словаря
-  - **Цель**: Убедиться, что пустой словарь возвращается как есть
+  - **What it does**: Verifies empty dict handling
+  - **Purpose**: Ensure empty dict is returned as-is
 
 - **`test_removes_empty_required_array()`**:
-  - **Что он делает**: Проверяет удаление пустого required массива
-  - **Цель**: Убедиться, что `required: []` удаляется из schema (критический тест для бага Cline)
+  - **What it does**: Verifies removal of empty required array
+  - **Purpose**: Ensure `required: []` is removed from schema (critical test for Cline bug)
 
 - **`test_preserves_non_empty_required_array()`**:
-  - **Что он делает**: Проверяет сохранение непустого required массива
-  - **Цель**: Убедиться, что required с элементами сохраняется
+  - **What it does**: Verifies preservation of non-empty required array
+  - **Purpose**: Ensure required with elements is preserved
 
 - **`test_removes_additional_properties()`**:
-  - **Что он делает**: Проверяет удаление additionalProperties
-  - **Цель**: Убедиться, что additionalProperties удаляется из schema
+  - **What it does**: Verifies additionalProperties removal
+  - **Purpose**: Ensure additionalProperties is removed from schema
 
 - **`test_removes_both_empty_required_and_additional_properties()`**:
-  - **Что он делает**: Проверяет удаление обоих проблемных полей
-  - **Цель**: Убедиться, что оба поля удаляются одновременно (реальный сценарий от Cline)
+  - **What it does**: Verifies removal of both problematic fields
+  - **Purpose**: Ensure both fields are removed simultaneously (real scenario from Cline)
 
 - **`test_recursively_sanitizes_nested_properties()`**:
-  - **Что он делает**: Проверяет рекурсивную очистку вложенных properties
-  - **Цель**: Убедиться, что вложенные schema также очищаются
+  - **What it does**: Verifies recursive cleaning of nested properties
+  - **Purpose**: Ensure nested schemas are also cleaned
 
 - **`test_recursively_sanitizes_dict_values()`**:
-  - **Что он делает**: Проверяет рекурсивную очистку dict значений
-  - **Цель**: Убедиться, что любые вложенные dict очищаются
+  - **What it does**: Verifies recursive cleaning of dict values
+  - **Purpose**: Ensure any nested dicts are cleaned
 
 - **`test_sanitizes_items_in_lists()`**:
-  - **Что он делает**: Проверяет очистку элементов в списках (anyOf, oneOf)
-  - **Цель**: Убедиться, что элементы списков также очищаются
+  - **What it does**: Verifies cleaning of items in lists (anyOf, oneOf)
+  - **Purpose**: Ensure list items are also cleaned
 
 - **`test_preserves_non_dict_list_items()`**:
-  - **Что он делает**: Проверяет сохранение не-dict элементов в списках
-  - **Цель**: Убедиться, что строки и другие типы в списках сохраняются
+  - **What it does**: Verifies preservation of non-dict items in lists
+  - **Purpose**: Ensure strings and other types in lists are preserved
 
 - **`test_complex_real_world_schema()`**:
-  - **Что он делает**: Проверяет очистку реальной сложной schema от Cline
-  - **Цель**: Убедиться, что реальные schema обрабатываются корректно
+  - **What it does**: Verifies cleaning of real complex schema from Cline
+  - **Purpose**: Ensure real schemas are processed correctly
 
 #### `TestBuildUserInputContext`
 
-- **`test_builds_tools_context()`**: Проверяет построение контекста с tools
-- **`test_returns_empty_for_no_tools()`**: Проверяет возврат пустого контекста без tools
+- **`test_builds_tools_context()`**: Verifies context building with tools
+- **`test_returns_empty_for_no_tools()`**: Verifies empty context return without tools
 
-**Новые тесты для placeholder пустых descriptions (исправление бага Cline):**
+**New tests for empty description placeholder (Cline bug fix):**
 
 - **`test_empty_description_replaced_with_placeholder()`**:
-  - **Что он делает**: Проверяет замену пустого description на placeholder
-  - **Цель**: Убедиться, что пустой description заменяется на "Tool: {name}" (критический тест для бага Cline с focus_chain)
+  - **What it does**: Verifies empty description replacement with placeholder
+  - **Purpose**: Ensure empty description is replaced with "Tool: {name}" (critical test for Cline bug with focus_chain)
 
 - **`test_whitespace_only_description_replaced_with_placeholder()`**:
-  - **Что он делает**: Проверяет замену description из пробелов на placeholder
-  - **Цель**: Убедиться, что description с только пробелами заменяется
+  - **What it does**: Verifies whitespace-only description replacement with placeholder
+  - **Purpose**: Ensure description with only spaces is replaced
 
 - **`test_none_description_replaced_with_placeholder()`**:
-  - **Что он делает**: Проверяет замену None description на placeholder
-  - **Цель**: Убедиться, что None description заменяется на "Tool: {name}"
+  - **What it does**: Verifies None description replacement with placeholder
+  - **Purpose**: Ensure None description is replaced with "Tool: {name}"
 
 - **`test_non_empty_description_preserved()`**:
-  - **Что он делает**: Проверяет сохранение непустого description
-  - **Цель**: Убедиться, что нормальный description не изменяется
+  - **What it does**: Verifies non-empty description preservation
+  - **Purpose**: Ensure normal description is not changed
 
 - **`test_sanitizes_tool_parameters()`**:
-  - **Что он делает**: Проверяет очистку parameters от проблемных полей
-  - **Цель**: Убедиться, что _sanitize_json_schema применяется к parameters
+  - **What it does**: Verifies parameters cleaning from problematic fields
+  - **Purpose**: Ensure _sanitize_json_schema is applied to parameters
 
 - **`test_mixed_tools_with_empty_and_normal_descriptions()`**:
-  - **Что он делает**: Проверяет обработку смешанного списка tools
-  - **Цель**: Убедиться, что пустые descriptions заменяются, а нормальные сохраняются (реальный сценарий от Cline)
+  - **What it does**: Verifies handling of mixed tools list
+  - **Purpose**: Ensure empty descriptions are replaced while normal ones are preserved (real scenario from Cline)
 
 #### `TestBuildKiroPayload`
 
-- **`test_builds_simple_payload()`**: Проверяет построение простого payload
-- **`test_includes_system_prompt_in_first_message()`**: Проверяет добавление system prompt
-- **`test_builds_history_for_multi_turn()`**: Проверяет построение истории для multi-turn
-- **`test_handles_assistant_as_last_message()`**: Проверяет обработку assistant как последнего сообщения
-- **`test_raises_for_empty_messages()`**: Проверяет выброс исключения для пустых сообщений
-- **`test_uses_continue_for_empty_content()`**: Проверяет использование "Continue" для пустого контента
-- **`test_maps_model_id_correctly()`**: Проверяет маппинг внешнего ID модели во внутренний
+- **`test_builds_simple_payload()`**: Verifies simple payload building
+- **`test_includes_system_prompt_in_first_message()`**: Verifies system prompt addition
+- **`test_builds_history_for_multi_turn()`**: Verifies history building for multi-turn
+- **`test_handles_assistant_as_last_message()`**: Verifies handling of assistant as last message
+- **`test_raises_for_empty_messages()`**: Verifies exception throwing for empty messages
+- **`test_uses_continue_for_empty_content()`**: Verifies "Continue" usage for empty content
+- **`test_maps_model_id_correctly()`**: Verifies external model ID mapping to internal
 - **`test_long_tool_description_added_to_system_prompt()`**:
-  - **Что он делает**: Проверяет интеграцию длинных tool descriptions в payload
-  - **Цель**: Убедиться, что длинные descriptions добавляются в system prompt в payload
+  - **What it does**: Verifies long tool descriptions integration in payload
+  - **Purpose**: Ensure long descriptions are added to system prompt in payload
 
 ---
 
 ### `tests/unit/test_parsers.py`
 
-Unit-тесты для **AwsEventStreamParser** и вспомогательных функций парсинга. **52 теста.**
+Unit tests for **AwsEventStreamParser** and helper parsing functions. **52 tests.**
 
 #### `TestFindMatchingBrace`
 
-- **`test_simple_json_object()`**: Проверяет поиск закрывающей скобки для простого JSON
-- **`test_nested_json_object()`**: Проверяет поиск для вложенного JSON
-- **`test_json_with_braces_in_string()`**: Проверяет игнорирование скобок внутри строк
-- **`test_json_with_escaped_quotes()`**: Проверяет обработку экранированных кавычек
-- **`test_incomplete_json()`**: Проверяет обработку незавершённого JSON
-- **`test_invalid_start_position()`**: Проверяет обработку невалидной стартовой позиции
-- **`test_start_position_out_of_bounds()`**: Проверяет обработку позиции за пределами текста
+- **`test_simple_json_object()`**: Verifies closing brace search for simple JSON
+- **`test_nested_json_object()`**: Verifies search for nested JSON
+- **`test_json_with_braces_in_string()`**: Verifies ignoring braces inside strings
+- **`test_json_with_escaped_quotes()`**: Verifies handling of escaped quotes
+- **`test_incomplete_json()`**: Verifies handling of incomplete JSON
+- **`test_invalid_start_position()`**: Verifies handling of invalid start position
+- **`test_start_position_out_of_bounds()`**: Verifies handling of position beyond text
 
 #### `TestParseBracketToolCalls`
 
-- **`test_parses_single_tool_call()`**: Проверяет парсинг одного tool call
-- **`test_parses_multiple_tool_calls()`**: Проверяет парсинг нескольких tool calls
-- **`test_returns_empty_for_no_tool_calls()`**: Проверяет возврат пустого списка без tool calls
-- **`test_returns_empty_for_empty_string()`**: Проверяет обработку пустой строки
-- **`test_returns_empty_for_none()`**: Проверяет обработку None
-- **`test_handles_nested_json_in_args()`**: Проверяет парсинг вложенного JSON в аргументах
-- **`test_generates_unique_ids()`**: Проверяет генерацию уникальных ID для tool calls
+- **`test_parses_single_tool_call()`**: Verifies parsing of single tool call
+- **`test_parses_multiple_tool_calls()`**: Verifies parsing of multiple tool calls
+- **`test_returns_empty_for_no_tool_calls()`**: Verifies empty list return without tool calls
+- **`test_returns_empty_for_empty_string()`**: Verifies empty string handling
+- **`test_returns_empty_for_none()`**: Verifies None handling
+- **`test_handles_nested_json_in_args()`**: Verifies parsing of nested JSON in arguments
+- **`test_generates_unique_ids()`**: Verifies unique ID generation for tool calls
 
 #### `TestDeduplicateToolCalls`
 
-- **`test_removes_duplicates()`**: Проверяет удаление дубликатов
-- **`test_preserves_first_occurrence()`**: Проверяет сохранение первого вхождения
-- **`test_handles_empty_list()`**: Проверяет обработку пустого списка
+- **`test_removes_duplicates()`**: Verifies duplicate removal
+- **`test_preserves_first_occurrence()`**: Verifies first occurrence preservation
+- **`test_handles_empty_list()`**: Verifies empty list handling
 
-**Новые тесты для улучшенной дедупликации по id:**
+**New tests for improved deduplication by id:**
 
 - **`test_deduplicates_by_id_keeps_one_with_arguments()`**:
-  - **Что он делает**: Проверяет дедупликацию по id с сохранением tool call с аргументами
-  - **Цель**: Убедиться, что при дубликатах по id сохраняется тот, у которого есть аргументы
+  - **What it does**: Verifies deduplication by id keeping tool call with arguments
+  - **Purpose**: Ensure when duplicates by id, the one with arguments is kept
 
 - **`test_deduplicates_by_id_prefers_longer_arguments()`**:
-  - **Что он делает**: Проверяет, что при дубликатах по id предпочитаются более длинные аргументы
-  - **Цель**: Убедиться, что сохраняется tool call с более полными аргументами
+  - **What it does**: Verifies that duplicates by id prefer longer arguments
+  - **Purpose**: Ensure tool call with more complete arguments is kept
 
 - **`test_deduplicates_empty_arguments_replaced_by_non_empty()`**:
-  - **Что он делает**: Проверяет замену пустых аргументов на непустые
-  - **Цель**: Убедиться, что "{}" заменяется на реальные аргументы
+  - **What it does**: Verifies empty arguments replacement with non-empty
+  - **Purpose**: Ensure "{}" is replaced with real arguments
 
 - **`test_handles_tool_calls_without_id()`**:
-  - **Что он делает**: Проверяет обработку tool calls без id
-  - **Цель**: Убедиться, что tool calls без id дедуплицируются по name+arguments
+  - **What it does**: Verifies handling of tool calls without id
+  - **Purpose**: Ensure tool calls without id are deduplicated by name+arguments
 
 - **`test_mixed_with_and_without_id()`**:
-  - **Что он делает**: Проверяет смешанный список с id и без
-  - **Цель**: Убедиться, что оба типа обрабатываются корректно
+  - **What it does**: Verifies mixed list with and without id
+  - **Purpose**: Ensure both types are handled correctly
 
 #### `TestAwsEventStreamParserInitialization`
 
-- **`test_initialization_creates_empty_state()`**: Проверяет начальное состояние парсера
+- **`test_initialization_creates_empty_state()`**: Verifies initial parser state
 
 #### `TestAwsEventStreamParserFeed`
 
-- **`test_parses_content_event()`**: Проверяет парсинг события с контентом
-- **`test_parses_multiple_content_events()`**: Проверяет парсинг нескольких событий контента
-- **`test_deduplicates_repeated_content()`**: Проверяет дедупликацию повторяющегося контента
-- **`test_parses_usage_event()`**: Проверяет парсинг события usage
-- **`test_parses_context_usage_event()`**: Проверяет парсинг события context_usage
-- **`test_handles_incomplete_json()`**: Проверяет обработку неполного JSON
-- **`test_completes_json_across_chunks()`**: Проверяет сборку JSON из нескольких chunks
-- **`test_decodes_escape_sequences()`**: Проверяет декодирование escape-последовательностей
-- **`test_handles_invalid_bytes()`**: Проверяет обработку невалидных байтов
+- **`test_parses_content_event()`**: Verifies content event parsing
+- **`test_parses_multiple_content_events()`**: Verifies multiple content events parsing
+- **`test_deduplicates_repeated_content()`**: Verifies repeated content deduplication
+- **`test_parses_usage_event()`**: Verifies usage event parsing
+- **`test_parses_context_usage_event()`**: Verifies context_usage event parsing
+- **`test_handles_incomplete_json()`**: Verifies incomplete JSON handling
+- **`test_completes_json_across_chunks()`**: Verifies JSON assembly from multiple chunks
+- **`test_decodes_escape_sequences()`**: Verifies escape sequence decoding
+- **`test_handles_invalid_bytes()`**: Verifies invalid bytes handling
 
 #### `TestAwsEventStreamParserToolCalls`
 
-- **`test_parses_tool_start_event()`**: Проверяет парсинг начала tool call
-- **`test_parses_tool_input_event()`**: Проверяет парсинг input для tool call
-- **`test_parses_tool_stop_event()`**: Проверяет завершение tool call
-- **`test_get_tool_calls_returns_all()`**: Проверяет получение всех tool calls
-- **`test_get_tool_calls_finalizes_current()`**: Проверяет завершение незавершённого tool call
+- **`test_parses_tool_start_event()`**: Verifies tool call start parsing
+- **`test_parses_tool_input_event()`**: Verifies tool call input parsing
+- **`test_parses_tool_stop_event()`**: Verifies tool call completion
+- **`test_get_tool_calls_returns_all()`**: Verifies getting all tool calls
+- **`test_get_tool_calls_finalizes_current()`**: Verifies incomplete tool call finalization
 
 #### `TestAwsEventStreamParserReset`
 
-- **`test_reset_clears_state()`**: Проверяет сброс состояния парсера
+- **`test_reset_clears_state()`**: Verifies parser state reset
 
 #### `TestAwsEventStreamParserFinalizeToolCall`
 
-**Новые тесты для метода _finalize_tool_call с разными типами input:**
+**New tests for _finalize_tool_call method with different input types:**
 
 - **`test_finalize_with_string_arguments()`**:
-  - **Что он делает**: Проверяет финализацию tool call со строковыми аргументами
-  - **Цель**: Убедиться, что строка JSON парсится и сериализуется обратно
+  - **What it does**: Verifies tool call finalization with string arguments
+  - **Purpose**: Ensure JSON string is parsed and serialized back
 
 - **`test_finalize_with_dict_arguments()`**:
-  - **Что он делает**: Проверяет финализацию tool call с dict аргументами
-  - **Цель**: Убедиться, что dict сериализуется в JSON строку
+  - **What it does**: Verifies tool call finalization with dict arguments
+  - **Purpose**: Ensure dict is serialized to JSON string
 
 - **`test_finalize_with_empty_string_arguments()`**:
-  - **Что он делает**: Проверяет финализацию tool call с пустой строкой аргументов
-  - **Цель**: Убедиться, что пустая строка заменяется на "{}"
+  - **What it does**: Verifies tool call finalization with empty string arguments
+  - **Purpose**: Ensure empty string is replaced with "{}"
 
 - **`test_finalize_with_whitespace_only_arguments()`**:
-  - **Что он делает**: Проверяет финализацию tool call с пробельными аргументами
-  - **Цель**: Убедиться, что строка из пробелов заменяется на "{}"
+  - **What it does**: Verifies tool call finalization with whitespace arguments
+  - **Purpose**: Ensure whitespace string is replaced with "{}"
 
 - **`test_finalize_with_invalid_json_arguments()`**:
-  - **Что он делает**: Проверяет финализацию tool call с невалидным JSON
-  - **Цель**: Убедиться, что невалидный JSON заменяется на "{}"
+  - **What it does**: Verifies tool call finalization with invalid JSON
+  - **Purpose**: Ensure invalid JSON is replaced with "{}"
 
 - **`test_finalize_with_none_current_tool_call()`**:
-  - **Что он делает**: Проверяет финализацию когда current_tool_call is None
-  - **Цель**: Убедиться, что ничего не происходит при None
+  - **What it does**: Verifies finalization when current_tool_call is None
+  - **Purpose**: Ensure nothing happens with None
 
 - **`test_finalize_clears_current_tool_call()`**:
-  - **Что он делает**: Проверяет, что финализация очищает current_tool_call
-  - **Цель**: Убедиться, что после финализации current_tool_call = None
+  - **What it does**: Verifies that finalization clears current_tool_call
+  - **Purpose**: Ensure current_tool_call = None after finalization
 
 #### `TestAwsEventStreamParserEdgeCases`
 
-- **`test_handles_followup_prompt()`**: Проверяет игнорирование followupPrompt
-- **`test_handles_mixed_events()`**: Проверяет парсинг смешанных событий
-- **`test_handles_garbage_between_events()`**: Проверяет обработку мусора между событиями
-- **`test_handles_empty_chunk()`**: Проверяет обработку пустого chunk
+- **`test_handles_followup_prompt()`**: Verifies followupPrompt ignoring
+- **`test_handles_mixed_events()`**: Verifies mixed events parsing
+- **`test_handles_garbage_between_events()`**: Verifies garbage handling between events
+- **`test_handles_empty_chunk()`**: Verifies empty chunk handling
 
 ---
 
 ### `tests/unit/test_tokenizer.py`
 
-Unit-тесты для **модуля токенизатора** (подсчёт токенов с помощью tiktoken). **32 теста.**
+Unit tests for **tokenizer module** (token counting with tiktoken). **32 tests.**
 
 #### `TestCountTokens`
 
-Тесты для функции count_tokens.
+Tests for count_tokens function.
 
 - **`test_empty_string_returns_zero()`**:
-  - **Что он делает**: Проверяет, что пустая строка возвращает 0 токенов
-  - **Цель**: Убедиться в корректной обработке граничного случая
+  - **What it does**: Verifies that empty string returns 0 tokens
+  - **Purpose**: Ensure correct edge case handling
 
 - **`test_none_returns_zero()`**:
-  - **Что он делает**: Проверяет, что None возвращает 0 токенов
-  - **Цель**: Убедиться в корректной обработке None
+  - **What it does**: Verifies that None returns 0 tokens
+  - **Purpose**: Ensure correct None handling
 
 - **`test_simple_text_returns_positive()`**:
-  - **Что он делает**: Проверяет, что простой текст возвращает положительное число токенов
-  - **Цель**: Убедиться в базовой работоспособности подсчёта
+  - **What it does**: Verifies that simple text returns positive token count
+  - **Purpose**: Ensure basic counting functionality
 
 - **`test_longer_text_returns_more_tokens()`**:
-  - **Что он делает**: Проверяет, что более длинный текст возвращает больше токенов
-  - **Цель**: Убедиться в корректной пропорциональности подсчёта
+  - **What it does**: Verifies that longer text returns more tokens
+  - **Purpose**: Ensure correct counting proportionality
 
 - **`test_claude_correction_applied_by_default()`**:
-  - **Что он делает**: Проверяет, что коэффициент коррекции Claude применяется по умолчанию
-  - **Цель**: Убедиться, что apply_claude_correction=True по умолчанию
+  - **What it does**: Verifies that Claude correction factor is applied by default
+  - **Purpose**: Ensure apply_claude_correction=True by default
 
 - **`test_without_claude_correction()`**:
-  - **Что он делает**: Проверяет подсчёт без коэффициента коррекции
-  - **Цель**: Убедиться, что apply_claude_correction=False работает
+  - **What it does**: Verifies counting without correction factor
+  - **Purpose**: Ensure apply_claude_correction=False works
 
 - **`test_unicode_text()`**:
-  - **Что он делает**: Проверяет подсчёт токенов для Unicode текста
-  - **Цель**: Убедиться в корректной обработке не-ASCII символов
+  - **What it does**: Verifies token counting for Unicode text
+  - **Purpose**: Ensure correct non-ASCII character handling
 
 - **`test_multiline_text()`**:
-  - **Что он делает**: Проверяет подсчёт токенов для многострочного текста
-  - **Цель**: Убедиться в корректной обработке переносов строк
+  - **What it does**: Verifies token counting for multiline text
+  - **Purpose**: Ensure correct newline handling
 
 - **`test_json_text()`**:
-  - **Что он делает**: Проверяет подсчёт токенов для JSON строки
-  - **Цель**: Убедиться в корректной обработке JSON
+  - **What it does**: Verifies token counting for JSON string
+  - **Purpose**: Ensure correct JSON handling
 
 #### `TestCountTokensFallback`
 
-Тесты для fallback логики при отсутствии tiktoken.
+Tests for fallback logic when tiktoken is unavailable.
 
 - **`test_fallback_when_tiktoken_unavailable()`**:
-  - **Что он делает**: Проверяет fallback подсчёт когда tiktoken недоступен
-  - **Цель**: Убедиться, что система работает без tiktoken
+  - **What it does**: Verifies fallback counting when tiktoken is unavailable
+  - **Purpose**: Ensure system works without tiktoken
 
 - **`test_fallback_without_correction()`**:
-  - **Что он делает**: Проверяет fallback без коэффициента коррекции
-  - **Цель**: Убедиться, что fallback работает с apply_claude_correction=False
+  - **What it does**: Verifies fallback without correction factor
+  - **Purpose**: Ensure fallback works with apply_claude_correction=False
 
 #### `TestCountMessageTokens`
 
-Тесты для функции count_message_tokens.
+Tests for count_message_tokens function.
 
 - **`test_empty_list_returns_zero()`**:
-  - **Что он делает**: Проверяет, что пустой список возвращает 0 токенов
-  - **Цель**: Убедиться в корректной обработке пустого списка
+  - **What it does**: Verifies that empty list returns 0 tokens
+  - **Purpose**: Ensure correct empty list handling
 
 - **`test_none_returns_zero()`**:
-  - **Что он делает**: Проверяет, что None возвращает 0 токенов
-  - **Цель**: Убедиться в корректной обработке None
+  - **What it does**: Verifies that None returns 0 tokens
+  - **Purpose**: Ensure correct None handling
 
 - **`test_single_user_message()`**:
-  - **Что он делает**: Проверяет подсчёт токенов для одного user сообщения
-  - **Цель**: Убедиться в базовой работоспособности
+  - **What it does**: Verifies token counting for single user message
+  - **Purpose**: Ensure basic functionality
 
 - **`test_multiple_messages()`**:
-  - **Что он делает**: Проверяет подсчёт токенов для нескольких сообщений
-  - **Цель**: Убедиться, что токены суммируются корректно
+  - **What it does**: Verifies token counting for multiple messages
+  - **Purpose**: Ensure tokens are summed correctly
 
 - **`test_message_with_tool_calls()`**:
-  - **Что он делает**: Проверяет подсчёт токенов для сообщения с tool_calls
-  - **Цель**: Убедиться, что tool_calls учитываются
+  - **What it does**: Verifies token counting for message with tool_calls
+  - **Purpose**: Ensure tool_calls are counted
 
 - **`test_message_with_tool_call_id()`**:
-  - **Что он делает**: Проверяет подсчёт токенов для tool response сообщения
-  - **Цель**: Убедиться, что tool_call_id учитывается
+  - **What it does**: Verifies token counting for tool response message
+  - **Purpose**: Ensure tool_call_id is counted
 
 - **`test_message_with_list_content()`**:
-  - **Что он делает**: Проверяет подсчёт токенов для мультимодального контента
-  - **Цель**: Убедиться, что list content обрабатывается
+  - **What it does**: Verifies token counting for multimodal content
+  - **Purpose**: Ensure list content is handled
 
 - **`test_without_claude_correction()`**:
-  - **Что он делает**: Проверяет подсчёт без коэффициента коррекции
-  - **Цель**: Убедиться, что apply_claude_correction=False работает
+  - **What it does**: Verifies counting without correction factor
+  - **Purpose**: Ensure apply_claude_correction=False works
 
 - **`test_message_with_empty_content()`**:
-  - **Что он делает**: Проверяет подсчёт для сообщения с пустым content
-  - **Цель**: Убедиться, что пустой content не ломает подсчёт
+  - **What it does**: Verifies counting for message with empty content
+  - **Purpose**: Ensure empty content doesn't break counting
 
 - **`test_message_with_none_content()`**:
-  - **Что он делает**: Проверяет подсчёт для сообщения с None content
-  - **Цель**: Убедиться, что None content не ломает подсчёт
+  - **What it does**: Verifies counting for message with None content
+  - **Purpose**: Ensure None content doesn't break counting
 
 #### `TestCountToolsTokens`
 
-Тесты для функции count_tools_tokens.
+Tests for count_tools_tokens function.
 
 - **`test_none_returns_zero()`**:
-  - **Что он делает**: Проверяет, что None возвращает 0 токенов
-  - **Цель**: Убедиться в корректной обработке None
+  - **What it does**: Verifies that None returns 0 tokens
+  - **Purpose**: Ensure correct None handling
 
 - **`test_empty_list_returns_zero()`**:
-  - **Что он делает**: Проверяет, что пустой список возвращает 0 токенов
-  - **Цель**: Убедиться в корректной обработке пустого списка
+  - **What it does**: Verifies that empty list returns 0 tokens
+  - **Purpose**: Ensure correct empty list handling
 
 - **`test_single_tool()`**:
-  - **Что он делает**: Проверяет подсчёт токенов для одного инструмента
-  - **Цель**: Убедиться в базовой работоспособности
+  - **What it does**: Verifies token counting for single tool
+  - **Purpose**: Ensure basic functionality
 
 - **`test_multiple_tools()`**:
-  - **Что он делает**: Проверяет подсчёт токенов для нескольких инструментов
-  - **Цель**: Убедиться, что токены суммируются
+  - **What it does**: Verifies token counting for multiple tools
+  - **Purpose**: Ensure tokens are summed
 
 - **`test_tool_with_complex_parameters()`**:
-  - **Что он делает**: Проверяет подсчёт для инструмента со сложными параметрами
-  - **Цель**: Убедиться, что JSON schema параметров учитывается
+  - **What it does**: Verifies counting for tool with complex parameters
+  - **Purpose**: Ensure JSON schema parameters are counted
 
 - **`test_tool_without_parameters()`**:
-  - **Что он делает**: Проверяет подсчёт для инструмента без параметров
-  - **Цель**: Убедиться, что отсутствие parameters не ломает подсчёт
+  - **What it does**: Verifies counting for tool without parameters
+  - **Purpose**: Ensure missing parameters doesn't break counting
 
 - **`test_tool_with_empty_description()`**:
-  - **Что он делает**: Проверяет подсчёт для инструмента с пустым description
-  - **Цель**: Убедиться, что пустой description не ломает подсчёт
+  - **What it does**: Verifies counting for tool with empty description
+  - **Purpose**: Ensure empty description doesn't break counting
 
 - **`test_non_function_tool_type()`**:
-  - **Что он делает**: Проверяет обработку инструмента с type != "function"
-  - **Цель**: Убедиться, что non-function tools обрабатываются
+  - **What it does**: Verifies handling of tool with type != "function"
+  - **Purpose**: Ensure non-function tools are handled
 
 - **`test_without_claude_correction()`**:
-  - **Что он делает**: Проверяет подсчёт без коэффициента коррекции
-  - **Цель**: Убедиться, что apply_claude_correction=False работает
+  - **What it does**: Verifies counting without correction factor
+  - **Purpose**: Ensure apply_claude_correction=False works
 
 #### `TestEstimateRequestTokens`
 
-Тесты для функции estimate_request_tokens.
+Tests for estimate_request_tokens function.
 
 - **`test_messages_only()`**:
-  - **Что он делает**: Проверяет оценку токенов только для сообщений
-  - **Цель**: Убедиться в базовой работоспособности
+  - **What it does**: Verifies token estimation for messages only
+  - **Purpose**: Ensure basic functionality
 
 - **`test_messages_with_tools()`**:
-  - **Что он делает**: Проверяет оценку токенов для сообщений с инструментами
-  - **Цель**: Убедиться, что tools учитываются
+  - **What it does**: Verifies token estimation for messages with tools
+  - **Purpose**: Ensure tools are counted
 
 - **`test_messages_with_system_prompt()`**:
-  - **Что он делает**: Проверяет оценку токенов с отдельным system prompt
-  - **Цель**: Убедиться, что system_prompt учитывается
+  - **What it does**: Verifies token estimation with separate system prompt
+  - **Purpose**: Ensure system_prompt is counted
 
 - **`test_full_request()`**:
-  - **Что он делает**: Проверяет оценку токенов для полного запроса
-  - **Цель**: Убедиться, что все компоненты суммируются
+  - **What it does**: Verifies token estimation for full request
+  - **Purpose**: Ensure all components are summed
 
 - **`test_empty_messages()`**:
-  - **Что он делает**: Проверяет оценку для пустого списка сообщений
-  - **Цель**: Убедиться в корректной обработке граничного случая
+  - **What it does**: Verifies estimation for empty message list
+  - **Purpose**: Ensure correct edge case handling
 
 #### `TestClaudeCorrectionFactor`
 
-Тесты для коэффициента коррекции Claude.
+Tests for Claude correction factor.
 
 - **`test_correction_factor_value()`**:
-  - **Что он делает**: Проверяет значение коэффициента коррекции
-  - **Цель**: Убедиться, что коэффициент равен 1.15
+  - **What it does**: Verifies correction factor value
+  - **Purpose**: Ensure factor equals 1.15
 
 - **`test_correction_increases_token_count()`**:
-  - **Что он делает**: Проверяет, что коррекция увеличивает количество токенов
-  - **Цель**: Убедиться, что коэффициент применяется корректно
+  - **What it does**: Verifies that correction increases token count
+  - **Purpose**: Ensure factor is applied correctly
 
 #### `TestGetEncoding`
 
-Тесты для функции _get_encoding.
+Tests for _get_encoding function.
 
 - **`test_returns_encoding_when_tiktoken_available()`**:
-  - **Что он делает**: Проверяет, что _get_encoding возвращает encoding когда tiktoken доступен
-  - **Цель**: Убедиться в корректной инициализации tiktoken
+  - **What it does**: Verifies that _get_encoding returns encoding when tiktoken is available
+  - **Purpose**: Ensure correct tiktoken initialization
 
 - **`test_caches_encoding()`**:
-  - **Что он делает**: Проверяет, что encoding кэшируется
-  - **Цель**: Убедиться в ленивой инициализации
+  - **What it does**: Verifies that encoding is cached
+  - **Purpose**: Ensure lazy initialization
 
 - **`test_handles_import_error()`**:
-  - **Что он делает**: Проверяет обработку ImportError при отсутствии tiktoken
-  - **Цель**: Убедиться, что система работает без tiktoken
+  - **What it does**: Verifies ImportError handling when tiktoken is missing
+  - **Purpose**: Ensure system works without tiktoken
 
 #### `TestTokenizerIntegration`
 
-Интеграционные тесты для токенизатора.
+Integration tests for tokenizer.
 
 - **`test_realistic_chat_request()`**:
-  - **Что он делает**: Проверяет подсчёт токенов для реалистичного chat запроса
-  - **Цель**: Убедиться в корректной работе на реальных данных
+  - **What it does**: Verifies token counting for realistic chat request
+  - **Purpose**: Ensure correct operation on real data
 
 - **`test_large_context()`**:
-  - **Что он делает**: Проверяет подсчёт токенов для большого контекста
-  - **Цель**: Убедиться в производительности на больших данных
+  - **What it does**: Verifies token counting for large context
+  - **Purpose**: Ensure performance on large data
 
 - **`test_consistency_across_calls()`**:
-  - **Что он делает**: Проверяет консистентность подсчёта при повторных вызовах
-  - **Цель**: Убедиться, что результаты детерминированы
+  - **What it does**: Verifies counting consistency across repeated calls
+  - **Purpose**: Ensure results are deterministic
 
 ---
 
 ### `tests/unit/test_streaming.py`
 
-Unit-тесты для **streaming модуля** (преобразование потока Kiro в OpenAI формат). **8 тестов.**
+Unit tests for **streaming module** (Kiro to OpenAI format stream conversion). **16 tests.**
 
 #### `TestStreamingToolCallsIndex`
 
-Тесты для добавления index к tool_calls в streaming ответах.
+Tests for adding index to tool_calls in streaming responses.
 
 - **`test_tool_calls_have_index_field()`**:
-  - **Что он делает**: Проверяет, что tool_calls в streaming ответе содержат поле index
-  - **Цель**: Убедиться, что OpenAI API spec соблюдается для streaming tool calls
+  - **What it does**: Verifies that tool_calls in streaming response contain index field
+  - **Purpose**: Ensure OpenAI API spec is followed for streaming tool calls
 
 - **`test_multiple_tool_calls_have_sequential_indices()`**:
-  - **Что он делает**: Проверяет, что несколько tool_calls имеют последовательные индексы
-  - **Цель**: Убедиться, что индексы начинаются с 0 и идут последовательно
+  - **What it does**: Verifies that multiple tool_calls have sequential indices
+  - **Purpose**: Ensure indices start from 0 and go sequentially
 
 #### `TestStreamingToolCallsNoneProtection`
 
-Тесты для защиты от None значений в tool_calls.
+Tests for None value protection in tool_calls.
 
 - **`test_handles_none_function_name()`**:
-  - **Что он делает**: Проверяет обработку None в function.name
-  - **Цель**: Убедиться, что None заменяется на пустую строку
+  - **What it does**: Verifies None handling in function.name
+  - **Purpose**: Ensure None is replaced with empty string
 
 - **`test_handles_none_function_arguments()`**:
-  - **Что он делает**: Проверяет обработку None в function.arguments
-  - **Цель**: Убедиться, что None заменяется на "{}"
+  - **What it does**: Verifies None handling in function.arguments
+  - **Purpose**: Ensure None is replaced with "{}"
 
 - **`test_handles_none_function_object()`**:
-  - **Что он делает**: Проверяет обработку None вместо function объекта
-  - **Цель**: Убедиться, что None function обрабатывается без ошибок
+  - **What it does**: Verifies None handling instead of function object
+  - **Purpose**: Ensure None function is handled without errors
 
 #### `TestCollectStreamResponseToolCalls`
 
-Тесты для collect_stream_response с tool_calls.
+Tests for collect_stream_response with tool_calls.
 
 - **`test_collected_tool_calls_have_no_index()`**:
-  - **Что он делает**: Проверяет, что собранные tool_calls не содержат поле index
-  - **Цель**: Убедиться, что для non-streaming ответа index удаляется
+  - **What it does**: Verifies that collected tool_calls don't contain index field
+  - **Purpose**: Ensure index is removed for non-streaming response
 
 - **`test_collected_tool_calls_have_required_fields()`**:
-  - **Что он делает**: Проверяет, что собранные tool_calls содержат все обязательные поля
-  - **Цель**: Убедиться, что id, type, function присутствуют
+  - **What it does**: Verifies that collected tool_calls contain all required fields
+  - **Purpose**: Ensure id, type, function are present
 
 - **`test_handles_none_in_collected_tool_calls()`**:
-  - **Что он делает**: Проверяет обработку None значений в собранных tool_calls
-  - **Цель**: Убедиться, что None заменяются на дефолтные значения
+  - **What it does**: Verifies None value handling in collected tool_calls
+  - **Purpose**: Ensure None values are replaced with defaults
+
+#### `TestStreamingErrorHandling`
+
+Tests for error handling in streaming module (bug #8 fix).
+
+- **`test_generator_exit_handled_gracefully()`**:
+  - **What it does**: Verifies that GeneratorExit is handled without logging as error
+  - **Purpose**: Ensure client disconnect doesn't cause ERROR in logs
+
+- **`test_exception_with_empty_message_logged_with_type()`**:
+  - **What it does**: Verifies that exception with empty message is logged with type
+  - **Purpose**: Ensure exception type is visible in logs even if str(e) is empty
+
+- **`test_exception_propagated_to_caller()`**:
+  - **What it does**: Verifies that exceptions are propagated up
+  - **Purpose**: Ensure errors are not "swallowed" inside generator
+
+- **`test_response_closed_on_error()`**:
+  - **What it does**: Verifies that response is closed even on error
+  - **Purpose**: Ensure resources are released in finally block
+
+- **`test_response_closed_on_success()`**:
+  - **What it does**: Verifies that response is closed on successful completion
+  - **Purpose**: Ensure resources are released in finally block
+
+- **`test_aclose_error_does_not_mask_original_error()`**:
+  - **What it does**: Verifies that aclose() error doesn't mask original error
+  - **Purpose**: Ensure original exception is propagated even if aclose() fails
+
+#### `TestFirstTokenTimeoutError`
+
+Tests for FirstTokenTimeoutError.
+
+- **`test_first_token_timeout_not_caught_by_general_handler()`**:
+  - **What it does**: Verifies that FirstTokenTimeoutError is propagated for retry
+  - **Purpose**: Ensure first token timeout is not handled as regular error
 
 ---
 
 ### `tests/unit/test_http_client.py`
 
-Unit-тесты для **KiroHttpClient** (HTTP клиент с retry логикой). **29 тестов.**
+Unit tests for **KiroHttpClient** (HTTP client with retry logic). **29 tests.**
 
 #### `TestKiroHttpClientInitialization`
 
-- **`test_initialization_stores_auth_manager()`**: Проверяет сохранение auth_manager при инициализации
-- **`test_initialization_client_is_none()`**: Проверяет, что HTTP клиент изначально None
+- **`test_initialization_stores_auth_manager()`**: Verifies auth_manager storage during initialization
+- **`test_initialization_client_is_none()`**: Verifies that HTTP client is initially None
 
 #### `TestKiroHttpClientGetClient`
 
-- **`test_get_client_creates_new_client()`**: Проверяет создание нового HTTP клиента
-- **`test_get_client_reuses_existing_client()`**: Проверяет повторное использование существующего клиента
-- **`test_get_client_recreates_closed_client()`**: Проверяет пересоздание закрытого клиента
+- **`test_get_client_creates_new_client()`**: Verifies new HTTP client creation
+- **`test_get_client_reuses_existing_client()`**: Verifies existing client reuse
+- **`test_get_client_recreates_closed_client()`**: Verifies closed client recreation
 
 #### `TestKiroHttpClientClose`
 
-- **`test_close_closes_client()`**: Проверяет закрытие HTTP клиента
-- **`test_close_does_nothing_for_none_client()`**: Проверяет, что close() не падает для None клиента
-- **`test_close_does_nothing_for_closed_client()`**: Проверяет, что close() не падает для закрытого клиента
+- **`test_close_closes_client()`**: Verifies HTTP client closing
+- **`test_close_does_nothing_for_none_client()`**: Verifies close() doesn't crash for None client
+- **`test_close_does_nothing_for_closed_client()`**: Verifies close() doesn't crash for closed client
 
 #### `TestKiroHttpClientRequestWithRetry`
 
-- **`test_successful_request_returns_response()`**: Проверяет успешный запрос
-- **`test_403_triggers_token_refresh()`**: Проверяет обновление токена при 403
-- **`test_429_triggers_backoff()`**: Проверяет exponential backoff при 429
-- **`test_5xx_triggers_backoff()`**: Проверяет exponential backoff при 5xx
-- **`test_timeout_triggers_backoff()`**: Проверяет exponential backoff при таймауте
-- **`test_request_error_triggers_backoff()`**: Проверяет exponential backoff при ошибке запроса
-- **`test_max_retries_exceeded_raises_502()`**: Проверяет выброс HTTPException после исчерпания попыток
-- **`test_other_status_codes_returned_as_is()`**: Проверяет возврат других статус-кодов без retry
-- **`test_streaming_request_uses_send()`**: Проверяет использование send() для streaming
+- **`test_successful_request_returns_response()`**: Verifies successful request
+- **`test_403_triggers_token_refresh()`**: Verifies token refresh on 403
+- **`test_429_triggers_backoff()`**: Verifies exponential backoff on 429
+- **`test_5xx_triggers_backoff()`**: Verifies exponential backoff on 5xx
+- **`test_timeout_triggers_backoff()`**: Verifies exponential backoff on timeout
+- **`test_request_error_triggers_backoff()`**: Verifies exponential backoff on request error
+- **`test_max_retries_exceeded_raises_502()`**: Verifies HTTPException after retries exhausted
+- **`test_other_status_codes_returned_as_is()`**: Verifies other status codes return without retry
+- **`test_streaming_request_uses_send()`**: Verifies send() usage for streaming
 
 #### `TestKiroHttpClientContextManager`
 
-- **`test_context_manager_returns_self()`**: Проверяет, что __aenter__ возвращает self
-- **`test_context_manager_closes_on_exit()`**: Проверяет закрытие клиента при выходе из контекста
+- **`test_context_manager_returns_self()`**: Verifies __aenter__ returns self
+- **`test_context_manager_closes_on_exit()`**: Verifies client closing on context exit
 
 #### `TestKiroHttpClientExponentialBackoff`
 
-- **`test_backoff_delay_increases_exponentially()`**: Проверяет экспоненциальное увеличение задержки
+- **`test_backoff_delay_increases_exponentially()`**: Verifies exponential delay increase
 
 #### `TestKiroHttpClientFirstTokenTimeout`
 
-**Новые тесты для логики first token timeout для streaming запросов:**
+**New tests for first token timeout logic for streaming requests:**
 
 - **`test_streaming_uses_first_token_timeout()`**:
-  - **Что он делает**: Проверяет, что streaming запросы используют FIRST_TOKEN_TIMEOUT
-  - **Цель**: Убедиться, что для stream=True используется короткий таймаут
+  - **What it does**: Verifies that streaming requests use FIRST_TOKEN_TIMEOUT
+  - **Purpose**: Ensure short timeout is used for stream=True
 
 - **`test_streaming_uses_first_token_max_retries()`**:
-  - **Что он делает**: Проверяет, что streaming запросы используют FIRST_TOKEN_MAX_RETRIES
-  - **Цель**: Убедиться, что для stream=True используется отдельный счётчик retry
+  - **What it does**: Verifies that streaming requests use FIRST_TOKEN_MAX_RETRIES
+  - **Purpose**: Ensure separate retry counter is used for stream=True
 
 - **`test_streaming_timeout_retry_without_delay()`**:
-  - **Что он делает**: Проверяет, что streaming таймаут retry происходит без задержки
-  - **Цель**: Убедиться, что при first token timeout нет exponential backoff
+  - **What it does**: Verifies that streaming timeout retry happens without delay
+  - **Purpose**: Ensure no exponential backoff on first token timeout
 
 - **`test_non_streaming_uses_default_timeout()`**:
-  - **Что он делает**: Проверяет, что non-streaming запросы используют 300 секунд
-  - **Цель**: Убедиться, что для stream=False используется длинный таймаут
+  - **What it does**: Verifies that non-streaming requests use 300 seconds
+  - **Purpose**: Ensure long timeout is used for stream=False
 
 - **`test_custom_first_token_timeout()`**:
-  - **Что он делает**: Проверяет использование кастомного first_token_timeout
-  - **Цель**: Убедиться, что параметр first_token_timeout переопределяет дефолт
+  - **What it does**: Verifies custom first_token_timeout usage
+  - **Purpose**: Ensure first_token_timeout parameter overrides default
 
 - **`test_streaming_timeout_returns_504()`**:
-  - **Что он делает**: Проверяет, что streaming таймаут возвращает 504
-  - **Цель**: Убедиться, что после исчерпания попыток возвращается 504 Gateway Timeout
+  - **What it does**: Verifies that streaming timeout returns 504
+  - **Purpose**: Ensure 504 Gateway Timeout is returned after retries exhausted
 
 - **`test_non_streaming_timeout_returns_502()`**:
-  - **Что он делает**: Проверяет, что non-streaming таймаут возвращает 502
-  - **Цель**: Убедиться, что для non-streaming используется старая логика с 502
+  - **What it does**: Verifies that non-streaming timeout returns 502
+  - **Purpose**: Ensure old logic with 502 is used for non-streaming
 
 ---
 
 ### `tests/unit/test_routes.py`
 
-Unit-тесты для **API endpoints** (/v1/models, /v1/chat/completions). **22 теста.**
+Unit tests for **API endpoints** (/v1/models, /v1/chat/completions). **22 tests.**
 
 #### `TestVerifyApiKey`
 
-- **`test_valid_api_key_returns_true()`**: Проверяет успешную валидацию корректного ключа
-- **`test_invalid_api_key_raises_401()`**: Проверяет отклонение невалидного ключа
-- **`test_missing_api_key_raises_401()`**: Проверяет отклонение отсутствующего ключа
-- **`test_empty_api_key_raises_401()`**: Проверяет отклонение пустого ключа
-- **`test_wrong_format_raises_401()`**: Проверяет отклонение ключа без Bearer
+- **`test_valid_api_key_returns_true()`**: Verifies successful validation of correct key
+- **`test_invalid_api_key_raises_401()`**: Verifies invalid key rejection
+- **`test_missing_api_key_raises_401()`**: Verifies missing key rejection
+- **`test_empty_api_key_raises_401()`**: Verifies empty key rejection
+- **`test_wrong_format_raises_401()`**: Verifies key without Bearer rejection
 
 #### `TestRootEndpoint`
 
-- **`test_root_returns_status_ok()`**: Проверяет ответ корневого эндпоинта
-- **`test_root_returns_version()`**: Проверяет наличие версии в ответе
+- **`test_root_returns_status_ok()`**: Verifies root endpoint response
+- **`test_root_returns_version()`**: Verifies version presence in response
 
 #### `TestHealthEndpoint`
 
-- **`test_health_returns_healthy()`**: Проверяет ответ health эндпоинта
-- **`test_health_returns_timestamp()`**: Проверяет наличие timestamp в ответе
-- **`test_health_returns_version()`**: Проверяет наличие версии в ответе
+- **`test_health_returns_healthy()`**: Verifies health endpoint response
+- **`test_health_returns_timestamp()`**: Verifies timestamp presence in response
+- **`test_health_returns_version()`**: Verifies version presence in response
 
 #### `TestModelsEndpoint`
 
-- **`test_models_requires_auth()`**: Проверяет требование авторизации
-- **`test_models_returns_list()`**: Проверяет возврат списка моделей
-- **`test_models_returns_available_models()`**: Проверяет наличие доступных моделей
-- **`test_models_format_is_openai_compatible()`**: Проверяет формат ответа на совместимость с OpenAI
+- **`test_models_requires_auth()`**: Verifies authorization requirement
+- **`test_models_returns_list()`**: Verifies model list return
+- **`test_models_returns_available_models()`**: Verifies available models presence
+- **`test_models_format_is_openai_compatible()`**: Verifies response format OpenAI compatibility
 
 #### `TestChatCompletionsEndpoint`
 
-- **`test_chat_completions_requires_auth()`**: Проверяет требование авторизации
-- **`test_chat_completions_validates_messages()`**: Проверяет валидацию пустых сообщений
-- **`test_chat_completions_validates_model()`**: Проверяет валидацию отсутствующей модели
+- **`test_chat_completions_requires_auth()`**: Verifies authorization requirement
+- **`test_chat_completions_validates_messages()`**: Verifies empty messages validation
+- **`test_chat_completions_validates_model()`**: Verifies missing model validation
 
 #### `TestChatCompletionsWithMockedKiro`
 
-- **`test_chat_completions_accepts_valid_request_format()`**: Проверяет, что валидный формат запроса принимается
+- **`test_chat_completions_accepts_valid_request_format()`**: Verifies valid request format acceptance
 
 #### `TestChatCompletionsErrorHandling`
 
-- **`test_invalid_json_returns_422()`**: Проверяет обработку невалидного JSON
-- **`test_missing_content_in_message_returns_200()`**: Проверяет обработку сообщения без content
+- **`test_invalid_json_returns_422()`**: Verifies invalid JSON handling
+- **`test_missing_content_in_message_returns_200()`**: Verifies message without content handling
 
 #### `TestRouterIntegration`
 
-- **`test_router_has_all_endpoints()`**: Проверяет наличие всех эндпоинтов в роутере
-- **`test_router_methods()`**: Проверяет HTTP методы эндпоинтов
+- **`test_router_has_all_endpoints()`**: Verifies all endpoints presence in router
+- **`test_router_methods()`**: Verifies endpoint HTTP methods
 
 ---
 
 ### `tests/integration/test_full_flow.py`
 
-Integration-тесты для **полного end-to-end flow**. **12 тестов (11 passed, 1 skipped).**
+Integration tests for **full end-to-end flow**. **12 tests (11 passed, 1 skipped).**
 
 #### `TestFullChatCompletionFlow`
 
-- **`test_full_flow_health_to_models_to_chat()`**: Проверяет полный flow от health check до chat completions
-- **`test_authentication_flow()`**: Проверяет flow аутентификации
-- **`test_openai_compatibility_format()`**: Проверяет совместимость формата ответов с OpenAI API
+- **`test_full_flow_health_to_models_to_chat()`**: Verifies full flow from health check to chat completions
+- **`test_authentication_flow()`**: Verifies authentication flow
+- **`test_openai_compatibility_format()`**: Verifies response format compatibility with OpenAI API
 
 #### `TestRequestValidationFlow`
 
-- **`test_chat_completions_request_validation()`**: Проверяет валидацию различных форматов запросов
-- **`test_complex_message_formats()`**: Проверяет обработку сложных форматов сообщений
+- **`test_chat_completions_request_validation()`**: Verifies various request format validation
+- **`test_complex_message_formats()`**: Verifies complex message format handling
 
 #### `TestErrorHandlingFlow`
 
-- **`test_invalid_json_handling()`**: Проверяет обработку невалидного JSON
-- **`test_wrong_content_type_handling()`**: SKIPPED - обнаружен баг в validation_exception_handler
+- **`test_invalid_json_handling()`**: Verifies invalid JSON handling
+- **`test_wrong_content_type_handling()`**: SKIPPED - bug discovered in validation_exception_handler
 
 #### `TestModelsEndpointIntegration`
 
-- **`test_models_returns_all_available_models()`**: Проверяет, что все модели из конфига возвращаются
-- **`test_models_caching_behavior()`**: Проверяет поведение кэширования моделей
+- **`test_models_returns_all_available_models()`**: Verifies all models from config are returned
+- **`test_models_caching_behavior()`**: Verifies model caching behavior
 
 #### `TestStreamingFlagHandling`
 
-- **`test_stream_true_accepted()`**: Проверяет, что stream=true принимается
-- **`test_stream_false_accepted()`**: Проверяет, что stream=false принимается
+- **`test_stream_true_accepted()`**: Verifies stream=true acceptance
+- **`test_stream_false_accepted()`**: Verifies stream=false acceptance
 
 #### `TestHealthEndpointIntegration`
 
-- **`test_root_and_health_consistency()`**: Проверяет консистентность / и /health
+- **`test_root_and_health_consistency()`**: Verifies / and /health consistency
 
 ---
 
-## Философия тестирования
+## Testing Philosophy
 
-### Принципы
+### Principles
 
-1. **Изоляция**: Каждый тест полностью изолирован от внешних сервисов через моки
-2. **Детализация**: Обильные print() для понимания хода теста при отладке
-3. **Покрытие**: Тесты покрывают не только happy path, но и граничные случаи и ошибки
-4. **Безопасность**: Все тесты используют мок credentials, никогда не реальные
+1. **Isolation**: Each test is completely isolated from external services through mocks
+2. **Detail**: Abundant print() for understanding test flow during debugging
+3. **Coverage**: Tests cover not only happy path, but also edge cases and errors
+4. **Security**: All tests use mock credentials, never real ones
 
-### Структура теста (Arrange-Act-Assert)
+### Test Structure (Arrange-Act-Assert)
 
-Каждый тест следует паттерну:
-1. **Arrange** (Настройка): Подготовка моков и данных
-2. **Act** (Действие): Выполнение тестируемого действия
-3. **Assert** (Проверка): Верификация результата с явным сравнением
+Each test follows the pattern:
+1. **Arrange** (Setup): Prepare mocks and data
+2. **Act** (Action): Execute the tested action
+3. **Assert** (Verify): Verify result with explicit comparison
 
-### Типы тестов
+### Test Types
 
-- **Unit-тесты**: Тестируют отдельные функции/классы в изоляции
-- **Integration-тесты**: Проверяют взаимодействие компонентов
-- **Security-тесты**: Верифицируют систему безопасности
-- **Edge case-тесты**: Параноидальные проверки граничных случаев
+- **Unit tests**: Test individual functions/classes in isolation
+- **Integration tests**: Verify component interactions
+- **Security tests**: Verify security system
+- **Edge case tests**: Paranoid edge case checks
 
-## Добавление новых тестов
+## Adding New Tests
 
-При добавлении новых тестов:
+When adding new tests:
 
-1. Следуйте существующей структуре классов (`Test*Success`, `Test*Errors`, `Test*EdgeCases`)
-2. Используйте описательные имена: `test_<что_он_делает>_<ожидаемый_результат>`
-3. Добавляйте docstring с "Что он делает" и "Цель"
-4. Используйте print() для логирования шагов теста
-5. Обновляйте этот README с описанием нового теста
+1. Follow existing class structure (`Test*Success`, `Test*Errors`, `Test*EdgeCases`)
+2. Use descriptive names: `test_<what_it_does>_<expected_result>`
+3. Add docstring with "What it does" and "Purpose"
+4. Use print() for logging test steps
+5. Update this README with new test description
 
 ## Troubleshooting
 
-### Тесты падают с ImportError
+### Tests fail with ImportError
 
 ```bash
-# Убедитесь, что вы в корне проекта
+# Make sure you're in project root
 cd /path/to/kiro-openai-gateway
 
-# pytest.ini уже содержит pythonpath = .
-# Просто запустите pytest
+# pytest.ini already contains pythonpath = .
+# Just run pytest
 pytest
 ```
 
-### Тесты проходят локально, но падают в CI
+### Tests pass locally but fail in CI
 
-- Проверьте версии зависимостей в requirements.txt
-- Убедитесь, что все моки корректно изолируют внешние вызовы
+- Check dependency versions in requirements.txt
+- Ensure all mocks correctly isolate external calls
 
-### Async тесты не работают
+### Async tests don't work
 
 ```bash
-# Убедитесь, что pytest-asyncio установлен
+# Make sure pytest-asyncio is installed
 pip install pytest-asyncio
 
-# Проверьте наличие @pytest.mark.asyncio декоратора
+# Check for @pytest.mark.asyncio decorator
 ```
 
-## Метрики покрытия
+## Coverage Metrics
 
-Для проверки покрытия кода тестами:
+To check code coverage:
 
 ```bash
-# Установка coverage
+# Install coverage
 pip install pytest-cov
 
-# Запуск с отчетом о покрытии
+# Run with coverage report
 pytest --cov=kiro_gateway --cov-report=html
 
-# Просмотр отчета
+# View report
 open htmlcov/index.html  # macOS/Linux
 start htmlcov/index.html  # Windows
 ```
 
-## Контакты и поддержка
+## Contacts and Support
 
-При обнаружении багов или предложениях по улучшению тестов, создайте issue в репозитории проекта.
+If you find bugs or have suggestions for test improvements, create an issue in the project repository.

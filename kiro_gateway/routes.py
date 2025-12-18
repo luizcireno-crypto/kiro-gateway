@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 
 # Kiro OpenAI Gateway
+# https://github.com/jwadow/kiro-openai-gateway
 # Copyright (C) 2025 Jwadow
 #
 # This program is free software: you can redistribute it and/or modify
@@ -17,11 +18,11 @@
 # along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 """
-FastAPI роуты для Kiro Gateway.
+FastAPI routes for Kiro Gateway.
 
-Содержит все эндпоинты API:
-- / и /health: Health check
-- /v1/models: Список моделей
+Contains all API endpoints:
+- / and /health: Health check
+- /v1/models: Models list
 - /v1/chat/completions: Chat completions
 """
 
@@ -51,31 +52,31 @@ from kiro_gateway.streaming import stream_kiro_to_openai, collect_stream_respons
 from kiro_gateway.http_client import KiroHttpClient
 from kiro_gateway.utils import get_kiro_headers, generate_conversation_id
 
-# Импортируем debug_logger
+# Import debug_logger
 try:
     from kiro_gateway.debug_logger import debug_logger
 except ImportError:
     debug_logger = None
 
 
-# --- Схема безопасности ---
+# --- Security scheme ---
 api_key_header = APIKeyHeader(name="Authorization", auto_error=False)
 
 
 async def verify_api_key(auth_header: str = Security(api_key_header)) -> bool:
     """
-    Проверяет API ключ в заголовке Authorization.
+    Verify API key in Authorization header.
     
-    Ожидает формат: "Bearer {PROXY_API_KEY}"
+    Expects format: "Bearer {PROXY_API_KEY}"
     
     Args:
-        auth_header: Значение заголовка Authorization
+        auth_header: Authorization header value
     
     Returns:
-        True если ключ валиден
+        True if key is valid
     
     Raises:
-        HTTPException: 401 если ключ невалиден или отсутствует
+        HTTPException: 401 if key is invalid or missing
     """
     if not auth_header or auth_header != f"Bearer {PROXY_API_KEY}":
         logger.warning("Access attempt with invalid API key.")
@@ -83,7 +84,7 @@ async def verify_api_key(auth_header: str = Security(api_key_header)) -> bool:
     return True
 
 
-# --- Роутер ---
+# --- Router ---
 router = APIRouter()
 
 
@@ -93,7 +94,7 @@ async def root():
     Health check endpoint.
     
     Returns:
-        Статус и версия приложения
+        Status and application version
     """
     return {
         "status": "ok",
@@ -105,10 +106,10 @@ async def root():
 @router.get("/health")
 async def health():
     """
-    Детальный health check.
+    Detailed health check.
     
     Returns:
-        Статус, timestamp и версия
+        Status, timestamp and version
     """
     return {
         "status": "healthy",
@@ -120,23 +121,23 @@ async def health():
 @router.get("/v1/models", response_model=ModelList, dependencies=[Depends(verify_api_key)])
 async def get_models(request: Request):
     """
-    Возвращает список доступных моделей.
+    Return list of available models.
     
-    Использует статический список моделей с возможностью обновления из API.
-    Кэширует результаты для уменьшения нагрузки на API.
+    Uses static model list with ability to update from API.
+    Caches results to reduce API load.
     
     Args:
-        request: FastAPI Request для доступа к app.state
+        request: FastAPI Request for accessing app.state
     
     Returns:
-        ModelList с доступными моделями
+        ModelList with available models
     """
     logger.info("Request to /v1/models")
     
     auth_manager: KiroAuthManager = request.app.state.auth_manager
     model_cache: ModelInfoCache = request.app.state.model_cache
     
-    # Пытаемся получить модели из API если кэш пуст или устарел
+    # Try to get models from API if cache is empty or stale
     if model_cache.is_empty() or model_cache.is_stale():
         try:
             token = await auth_manager.get_access_token()
@@ -160,7 +161,7 @@ async def get_models(request: Request):
         except Exception as e:
             logger.warning(f"Failed to fetch models from API: {e}")
     
-    # Возвращаем статический список моделей
+    # Return static model list
     openai_models = [
         OpenAIModel(
             id=model_id,
@@ -176,32 +177,32 @@ async def get_models(request: Request):
 @router.post("/v1/chat/completions", dependencies=[Depends(verify_api_key)])
 async def chat_completions(request: Request, request_data: ChatCompletionRequest):
     """
-    Chat completions endpoint - совместим с OpenAI API.
+    Chat completions endpoint - compatible with OpenAI API.
     
-    Принимает запросы в формате OpenAI и транслирует их в Kiro API.
-    Поддерживает streaming и non-streaming режимы.
+    Accepts requests in OpenAI format and translates them to Kiro API.
+    Supports streaming and non-streaming modes.
     
     Args:
-        request: FastAPI Request для доступа к app.state
-        request_data: Запрос в формате OpenAI ChatCompletionRequest
+        request: FastAPI Request for accessing app.state
+        request_data: Request in OpenAI ChatCompletionRequest format
     
     Returns:
-        StreamingResponse для streaming режима
-        JSONResponse для non-streaming режима
+        StreamingResponse for streaming mode
+        JSONResponse for non-streaming mode
     
     Raises:
-        HTTPException: При ошибках валидации или API
+        HTTPException: On validation or API errors
     """
     logger.info(f"Request to /v1/chat/completions (model={request_data.model}, stream={request_data.stream})")
     
     auth_manager: KiroAuthManager = request.app.state.auth_manager
     model_cache: ModelInfoCache = request.app.state.model_cache
     
-    # Подготовка отладочных логов
+    # Prepare debug logs
     if debug_logger:
         debug_logger.prepare_new_request()
     
-    # Логируем входящий запрос
+    # Log incoming request
     try:
         request_body = json.dumps(request_data.model_dump(), ensure_ascii=False, indent=2).encode('utf-8')
         if debug_logger:
@@ -209,14 +210,14 @@ async def chat_completions(request: Request, request_data: ChatCompletionRequest
     except Exception as e:
         logger.warning(f"Failed to log request body: {e}")
     
-    # Ленивое заполнение кэша моделей
+    # Lazy model cache population
     if model_cache.is_empty():
         logger.debug("Model cache is empty, skipping forced population")
     
-    # Генерируем ID для разговора
+    # Generate conversation ID
     conversation_id = generate_conversation_id()
     
-    # Строим payload для Kiro
+    # Build payload for Kiro
     try:
         kiro_payload = build_kiro_payload(
             request_data,
@@ -226,7 +227,7 @@ async def chat_completions(request: Request, request_data: ChatCompletionRequest
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     
-    # Логируем payload для Kiro
+    # Log Kiro payload
     try:
         kiro_request_body = json.dumps(kiro_payload, ensure_ascii=False, indent=2).encode('utf-8')
         if debug_logger:
@@ -234,13 +235,13 @@ async def chat_completions(request: Request, request_data: ChatCompletionRequest
     except Exception as e:
         logger.warning(f"Failed to log Kiro request: {e}")
     
-    # Создаём HTTP клиент с retry логикой
+    # Create HTTP client with retry logic
     http_client = KiroHttpClient(auth_manager)
     url = f"{auth_manager.api_host}/generateAssistantResponse"
     try:
-        # Делаем запрос к Kiro API (для обоих режимов - streaming и non-streaming)
-        # Это важно: мы ждём ответа от Kiro ПЕРЕД возвратом StreamingResponse,
-        # чтобы 200 OK означал что Kiro принял запрос и начал отвечать
+        # Make request to Kiro API (for both streaming and non-streaming modes)
+        # Important: we wait for Kiro response BEFORE returning StreamingResponse,
+        # so that 200 OK means Kiro accepted the request and started responding
         response = await http_client.request_with_retry(
             "POST",
             url,
@@ -258,7 +259,7 @@ async def chat_completions(request: Request, request_data: ChatCompletionRequest
             error_text = error_content.decode('utf-8', errors='replace')
             logger.error(f"Error from Kiro API: {response.status_code} - {error_text}")
             
-            # Пытаемся распарсить JSON ответ от Kiro для извлечения сообщения об ошибке
+            # Try to parse JSON response from Kiro to extract error message
             error_message = error_text
             try:
                 error_json = json.loads(error_text)
@@ -269,16 +270,16 @@ async def chat_completions(request: Request, request_data: ChatCompletionRequest
             except (json.JSONDecodeError, KeyError):
                 pass
             
-            # Логируем access log для ошибки (до flush, чтобы попал в app_logs)
+            # Log access log for error (before flush, so it gets into app_logs)
             logger.warning(
                 f"HTTP {response.status_code} - POST /v1/chat/completions - {error_message[:100]}"
             )
             
-            # Сбрасываем debug логи при ошибке (режим "errors")
+            # Flush debug logs on error ("errors" mode)
             if debug_logger:
                 debug_logger.flush_on_error(response.status_code, error_message)
             
-            # Возвращаем ошибку в формате OpenAI API
+            # Return error in OpenAI API format
             return JSONResponse(
                 status_code=response.status_code,
                 content={
@@ -290,15 +291,16 @@ async def chat_completions(request: Request, request_data: ChatCompletionRequest
                 }
             )
         
-        # Подготавливаем данные для fallback подсчёта токенов
-        # Конвертируем Pydantic модели в словари для токенизатора
+        # Prepare data for fallback token counting
+        # Convert Pydantic models to dicts for tokenizer
         messages_for_tokenizer = [msg.model_dump() for msg in request_data.messages]
         tools_for_tokenizer = [tool.model_dump() for tool in request_data.tools] if request_data.tools else None
         
         if request_data.stream:
-            # Streaming режим
+            # Streaming mode
             async def stream_wrapper():
                 streaming_error = None
+                client_disconnected = False
                 try:
                     async for chunk in stream_kiro_to_openai(
                         http_client.client,
@@ -310,17 +312,31 @@ async def chat_completions(request: Request, request_data: ChatCompletionRequest
                         request_tools=tools_for_tokenizer
                     ):
                         yield chunk
+                except GeneratorExit:
+                    # Client disconnected - this is normal
+                    client_disconnected = True
+                    logger.debug("Client disconnected during streaming (GeneratorExit in routes)")
                 except Exception as e:
                     streaming_error = e
+                    # Try to send [DONE] to client before finishing
+                    # so client doesn't "hang" waiting for data
+                    try:
+                        yield "data: [DONE]\n\n"
+                    except Exception:
+                        pass  # Client already disconnected
                     raise
                 finally:
                     await http_client.close()
-                    # Логируем access log для streaming (успех или ошибка)
+                    # Log access log for streaming (success or error)
                     if streaming_error:
-                        logger.error(f"HTTP 500 - POST /v1/chat/completions (streaming) - {str(streaming_error)[:100]}")
+                        error_type = type(streaming_error).__name__
+                        error_msg = str(streaming_error) if str(streaming_error) else "(empty message)"
+                        logger.error(f"HTTP 500 - POST /v1/chat/completions (streaming) - [{error_type}] {error_msg[:100]}")
+                    elif client_disconnected:
+                        logger.info(f"HTTP 200 - POST /v1/chat/completions (streaming) - client disconnected")
                     else:
                         logger.info(f"HTTP 200 - POST /v1/chat/completions (streaming) - completed")
-                    # Записываем debug логи ПОСЛЕ завершения streaming
+                    # Write debug logs AFTER streaming completes
                     if debug_logger:
                         if streaming_error:
                             debug_logger.flush_on_error(500, str(streaming_error))
@@ -331,7 +347,7 @@ async def chat_completions(request: Request, request_data: ChatCompletionRequest
         
         else:
             
-            # Non-streaming режим - собираем весь ответ
+            # Non-streaming mode - collect entire response
             openai_response = await collect_stream_response(
                 http_client.client,
                 response,
@@ -344,10 +360,10 @@ async def chat_completions(request: Request, request_data: ChatCompletionRequest
             
             await http_client.close()
             
-            # Логируем access log для non-streaming успеха
+            # Log access log for non-streaming success
             logger.info(f"HTTP 200 - POST /v1/chat/completions (non-streaming) - completed")
             
-            # Записываем debug логи после завершения non-streaming запроса
+            # Write debug logs after non-streaming request completes
             if debug_logger:
                 debug_logger.discard_buffers()
             
@@ -355,18 +371,18 @@ async def chat_completions(request: Request, request_data: ChatCompletionRequest
     
     except HTTPException as e:
         await http_client.close()
-        # Логируем access log для HTTP ошибки
+        # Log access log for HTTP error
         logger.warning(f"HTTP {e.status_code} - POST /v1/chat/completions - {e.detail}")
-        # Сбрасываем debug логи при HTTP ошибке (режим "errors")
+        # Flush debug logs on HTTP error ("errors" mode)
         if debug_logger:
             debug_logger.flush_on_error(e.status_code, str(e.detail))
         raise
     except Exception as e:
         await http_client.close()
         logger.error(f"Internal error: {e}", exc_info=True)
-        # Логируем access log для внутренней ошибки
+        # Log access log for internal error
         logger.error(f"HTTP 500 - POST /v1/chat/completions - {str(e)[:100]}")
-        # Сбрасываем debug логи при внутренней ошибке (режим "errors")
+        # Flush debug logs on internal error ("errors" mode)
         if debug_logger:
             debug_logger.flush_on_error(500, str(e))
         raise HTTPException(status_code=500, detail=f"Internal Server Error: {str(e)}")
